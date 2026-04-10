@@ -95,10 +95,12 @@ Main profile page controller.
 Main responsibilities:
 
 - fetch profile data
-- fetch admin config
+- fetch auth config
+- fetch current session user
 - render the profile summary
+- render the login form when the user is not authenticated
 - render the editor form
-- validate and store the admin token in `localStorage`
+- call login, logout, and change-password endpoints
 - submit profile updates to `PUT /api/profiles/:rollNumber`
 
 ### [`cse/profile.css`](/home/satwik/aceconnect/cse/profile.css)
@@ -116,7 +118,8 @@ Main responsibilities:
 - create the Node HTTP server
 - parse routes and query params
 - handle CORS headers
-- validate admin token access
+- read and clear session cookies
+- authenticate session-backed users
 - serve static assets
 - expose JSON API endpoints
 
@@ -130,6 +133,8 @@ Main responsibilities:
 - seed the database from JSON on first run
 - fetch departments and sections
 - generate batches and roll numbers
+- hash and verify user passwords
+- create and validate sessions
 - read profiles
 - save profiles
 - seed missing generated profiles

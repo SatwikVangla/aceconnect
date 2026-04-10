@@ -25,25 +25,33 @@ The backend now uses SQLite through Node's built-in `node:sqlite` module.
 
 The SQLite database is generated locally and ignored by git.
 
-## Admin Auth
+## Authentication
 
-Write operations are protected by an admin token when `ADMIN_TOKEN` is set.
+The backend now uses real users and sessions instead of a single admin token.
 
-Example:
+Bootstrap admin account on first database creation:
+
+- username: `admin`
+- password: `change-me-now`
+
+You can override those first-run bootstrap values with:
 
 ```bash
-ADMIN_TOKEN=change-me npm start
+ADMIN_USERNAME=admin ADMIN_PASSWORD=strong-password ADMIN_NAME="Ace Admin" npm start
 ```
 
-Protected routes:
+Write routes require a logged-in `admin` or `editor` session:
 
 - `POST /api/profiles/seed`
 - `PUT /api/profiles/:rollNumber`
+- `POST /api/auth/change-password`
 
 Frontend behavior:
 
-- If `ADMIN_TOKEN` is configured, the profile editor asks for the token before allowing saves.
-- The token is stored in browser `localStorage` under `aceconnect_admin_token`.
+- the profile editor shows a login form when no valid session exists
+- login creates an HTTP-only session cookie
+- logout clears the session
+- authenticated users can change their password from the profile page
 
 ## Backend Storage
 

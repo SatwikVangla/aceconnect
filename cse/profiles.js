@@ -8,42 +8,65 @@ const rollNumber = params.get('rollNumber') ?? '22AG1A0501';
 const departmentId = params.get('departmentId') ?? 'cse';
 const batchStart = Number(params.get('batchStart')) || 2022;
 const section = params.get('section') ?? 'A';
-const adminStorageKey = 'aceconnect_admin_token';
-
-function getStoredAdminToken() {
-  return window.localStorage.getItem(adminStorageKey) ?? '';
-}
-
-function setStoredAdminToken(token) {
-  if (token) {
-    window.localStorage.setItem(adminStorageKey, token);
-    return;
-  }
-
-  window.localStorage.removeItem(adminStorageKey);
-}
-
-async function fetchAdminConfig() {
-  const response = await fetch('/api/admin/config');
+async function fetchAuthConfig() {
+  const response = await fetch('/api/auth/config');
 
   if (!response.ok) {
-    throw new Error(`Failed to load admin config: ${response.status}`);
+    throw new Error(`Failed to load auth config: ${response.status}`);
   }
 
   return response.json();
 }
 
-async function validateAdminToken(token) {
-  const response = await fetch('/api/admin/session', {
+async function fetchCurrentUser() {
+  const response = await fetch('/api/auth/me');
+
+  if (!response.ok) {
+    throw new Error(`Failed to load current user: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function login(username, password) {
+  const response = await fetch('/api/auth/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ username, password }),
   });
 
   if (!response.ok) {
-    throw new Error(`Invalid admin token: ${response.status}`);
+    throw new Error(`Login failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function logout() {
+  const response = await fetch('/api/auth/logout', {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Logout failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function changePassword(newPassword) {
+  const response = await fetch('/api/auth/change-password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ newPassword }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Password change failed: ${response.status}`);
   }
 }
 
@@ -137,21 +160,25 @@ function profileRender(profile) {
   `;
 }
 
-function renderEditor(profile, adminConfig) {
-  if (adminConfig.authEnabled && !getStoredAdminToken()) {
+function renderEditor(profile, authState) {
+  if (authState.authEnabled && !authState.user) {
     profileEditorContainerEl.innerHTML = `
       <section class="profile-editor">
         <div class="card">
           <div class="card-body">
-            <h2 class="h4 mb-3">Admin Login Required</h2>
-            <p class="text-muted">Enter the backend admin token to edit and save profiles.</p>
-            <form class="admin-token-form row g-3">
+            <h2 class="h4 mb-3">Login Required</h2>
+            <p class="text-muted">Sign in with a backend user account to edit and save profiles.</p>
+            <form class="auth-login-form row g-3">
               <div class="col-md-8">
-                <label class="form-label" for="adminToken">Admin Token</label>
-                <input class="form-control" id="adminToken" name="adminToken" type="password" autocomplete="off">
+                <label class="form-label" for="username">Username</label>
+                <input class="form-control" id="username" name="username" autocomplete="username" value="admin">
+              </div>
+              <div class="col-md-8">
+                <label class="form-label" for="password">Password</label>
+                <input class="form-control" id="password" name="password" type="password" autocomplete="current-password">
               </div>
               <div class="col-md-4 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary w-100">Unlock Editor</button>
+                <button type="submit" class="btn btn-primary w-100">Sign In</button>
               </div>
               <div class="col-12">
                 <span class="save-status text-muted"></span>
@@ -162,23 +189,26 @@ function renderEditor(profile, adminConfig) {
       </section>
     `;
 
-    const tokenFormEl = profileEditorContainerEl.querySelector('.admin-token-form');
+    const loginFormEl = profileEditorContainerEl.querySelector('.auth-login-form');
     const statusEl = profileEditorContainerEl.querySelector('.save-status');
 
-    tokenFormEl.addEventListener('submit', async (event) => {
+    loginFormEl.addEventListener('submit', async (event) => {
       event.preventDefault();
-      statusEl.textContent = 'Checking token...';
+      statusEl.textContent = 'Signing in...';
 
-      const formData = new FormData(tokenFormEl);
-      const token = String(formData.get('adminToken') ?? '').trim();
+      const formData = new FormData(loginFormEl);
+      const username = String(formData.get('username') ?? '').trim();
+      const password = String(formData.get('password') ?? '');
 
       try {
-        await validateAdminToken(token);
-        setStoredAdminToken(token);
-        renderEditor(profile, adminConfig);
+        const result = await login(username, password);
+        renderEditor(profile, {
+          ...authState,
+          user: result.user,
+        });
       } catch (error) {
         console.error(error);
-        statusEl.textContent = 'Invalid admin token.';
+        statusEl.textContent = 'Invalid username or password.';
       }
     });
 
@@ -191,7 +221,15 @@ function renderEditor(profile, adminConfig) {
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h2 class="h4 mb-0">Edit Profile</h2>
-            ${adminConfig.authEnabled ? '<button type="button" class="btn btn-outline-secondary btn-sm logout-admin">Clear Admin Token</button>' : ''}
+            ${
+              authState.user
+                ? `<div class="d-flex align-items-center gap-2 flex-wrap">
+                     <span class="text-muted small">Signed in as ${authState.user.fullName} (${authState.user.role})</span>
+                     <button type="button" class="btn btn-outline-secondary btn-sm change-password">Change Password</button>
+                     <button type="button" class="btn btn-outline-secondary btn-sm logout-user">Logout</button>
+                   </div>`
+                : ''
+            }
           </div>
           <form class="profile-form row g-3">
             <div class="col-md-6">
@@ -255,6 +293,18 @@ function renderEditor(profile, adminConfig) {
               <span class="save-status text-muted"></span>
             </div>
           </form>
+          <form class="password-form row g-3 mt-3">
+            <div class="col-md-8">
+              <label class="form-label" for="newPassword">New Password</label>
+              <input class="form-control" id="newPassword" name="newPassword" type="password" minlength="8" autocomplete="new-password">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button type="submit" class="btn btn-outline-primary w-100">Update Password</button>
+            </div>
+            <div class="col-12">
+              <span class="password-status text-muted"></span>
+            </div>
+          </form>
         </div>
       </div>
     </section>
@@ -262,14 +312,45 @@ function renderEditor(profile, adminConfig) {
 
   const formEl = profileEditorContainerEl.querySelector('.profile-form');
   const statusEl = profileEditorContainerEl.querySelector('.save-status');
-  const logoutButtonEl = profileEditorContainerEl.querySelector('.logout-admin');
+  const logoutButtonEl = profileEditorContainerEl.querySelector('.logout-user');
+  const passwordFormEl = profileEditorContainerEl.querySelector('.password-form');
+  const passwordStatusEl = profileEditorContainerEl.querySelector('.password-status');
+  const changePasswordButtonEl = profileEditorContainerEl.querySelector('.change-password');
 
   if (logoutButtonEl) {
-    logoutButtonEl.addEventListener('click', () => {
-      setStoredAdminToken('');
-      renderEditor(profile, adminConfig);
+    logoutButtonEl.addEventListener('click', async () => {
+      await logout();
+      renderEditor(profile, {
+        ...authState,
+        user: null,
+      });
     });
   }
+
+  if (changePasswordButtonEl) {
+    changePasswordButtonEl.addEventListener('click', () => {
+      passwordFormEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const newPasswordField = passwordFormEl.querySelector('#newPassword');
+      newPasswordField.focus();
+    });
+  }
+
+  passwordFormEl.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    passwordStatusEl.textContent = 'Updating password...';
+
+    const formData = new FormData(passwordFormEl);
+    const newPassword = String(formData.get('newPassword') ?? '');
+
+    try {
+      await changePassword(newPassword);
+      passwordFormEl.reset();
+      passwordStatusEl.textContent = 'Password updated.';
+    } catch (error) {
+      console.error(error);
+      passwordStatusEl.textContent = 'Password update failed. Use at least 8 characters.';
+    }
+  });
 
   formEl.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -282,25 +363,20 @@ function renderEditor(profile, adminConfig) {
     payload.section = section;
 
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      const token = getStoredAdminToken();
-
-      if (token) {
-        headers['X-Admin-Token'] = token;
-      }
-
       const response = await fetch(`/api/profiles/${encodeURIComponent(rollNumber)}`, {
         method: 'PUT',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         if (response.status === 401) {
-          setStoredAdminToken('');
-          renderEditor(profile, adminConfig);
+          renderEditor(profile, {
+            ...authState,
+            user: null,
+          });
           throw new Error('Unauthorized');
         }
 
@@ -309,11 +385,11 @@ function renderEditor(profile, adminConfig) {
 
       const updatedProfile = await response.json();
       profileRender(updatedProfile);
-      renderEditor(updatedProfile, adminConfig);
-      statusEl.textContent = 'Saved to backend JSON store.';
+      renderEditor(updatedProfile, authState);
+      statusEl.textContent = 'Saved to SQLite-backed backend.';
     } catch (error) {
       console.error(error);
-      statusEl.textContent = error.message === 'Unauthorized' ? 'Admin token expired or invalid.' : 'Save failed.';
+      statusEl.textContent = error.message === 'Unauthorized' ? 'Your session expired. Sign in again.' : 'Save failed.';
     }
   });
 }
@@ -323,17 +399,21 @@ async function init() {
   spinnerRender(profileEditorContainerEl);
 
   try {
-    const [profile, adminConfig] = await Promise.all([
+    const [profile, authConfig, authSession] = await Promise.all([
       fetchProfile(rollNumber, {
         departmentId,
         batchStart,
         section,
       }),
-      fetchAdminConfig(),
+      fetchAuthConfig(),
+      fetchCurrentUser(),
     ]);
 
     profileRender(profile);
-    renderEditor(profile, adminConfig);
+    renderEditor(profile, {
+      ...authConfig,
+      user: authSession.user,
+    });
   } catch (error) {
     console.error(error);
     profileContainerEl.innerHTML = '<p class="text-center">Unable to load the profile right now.</p>';

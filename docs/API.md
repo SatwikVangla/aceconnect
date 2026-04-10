@@ -17,25 +17,50 @@ Example response:
   "ok": true,
   "engine": "sqlite",
   "path": "/.../backend/aceconnect.sqlite",
-  "seedPath": "/.../backend/seed-data.json"
+  "seedPath": "/.../backend/seed-data.json",
+  "auth": {
+    "authEnabled": true,
+    "sessionCookieName": "aceconnect_session"
+  }
 }
 ```
 
-## Admin
+## Auth
 
-### `GET /api/admin/config`
+### `GET /api/auth/config`
 
-Returns whether admin auth is enabled.
+Returns auth configuration.
 
-### `POST /api/admin/session`
+### `GET /api/auth/me`
 
-Validates an admin token.
+Returns the authenticated user for the current session cookie.
+
+### `POST /api/auth/login`
+
+Creates a session and returns a `Set-Cookie` header.
 
 Request body:
 
 ```json
 {
-  "token": "change-me"
+  "username": "admin",
+  "password": "change-me-now"
+}
+```
+
+### `POST /api/auth/logout`
+
+Deletes the current session and clears the cookie.
+
+### `POST /api/auth/change-password`
+
+Requires an authenticated `admin` or `editor` session.
+
+Request body:
+
+```json
+{
+  "newPassword": "strong-password"
 }
 ```
 
@@ -92,13 +117,7 @@ Returns a stored profile if one exists. Otherwise returns a generated default pr
 
 ### `PUT /api/profiles/:rollNumber`
 
-Protected when `ADMIN_TOKEN` is set.
-
-Required header when protected:
-
-```text
-X-Admin-Token: <token>
-```
+Requires an authenticated `admin` or `editor` session.
 
 JSON body fields accepted:
 
@@ -122,7 +141,7 @@ JSON body fields accepted:
 
 ### `POST /api/profiles/seed`
 
-Protected when `ADMIN_TOKEN` is set.
+Requires an authenticated `admin` or `editor` session.
 
 Optional query params:
 

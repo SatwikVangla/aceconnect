@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile } from 'node:fs/promises';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -8,8 +9,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const sqlitePath = path.join(__dirname, 'aceconnect.sqlite');
 const seedPath = path.join(__dirname, 'seed-data.json');
+const sessionDurationMs = 1000 * 60 * 60 * 24 * 7;
 
 let db;
+
+function hashPassword(password, salt = randomBytes(16).toString('hex')) {
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  return { salt, hash };
+}
+
+function verifyPassword(password, salt, expectedHash) {
+  const actualHash = scryptSync(password, salt, 64);
+  const expected = Buffer.from(expectedHash, 'hex');
+  return actualHash.length === expected.length && timingSafeEqual(actualHash, expected);
+}
+
+function createSessionToken() {
+  return randomBytes(32).toString('hex');
+}
 
 function getBatches() {
   const currentYear = new Date().getFullYear();
@@ -118,6 +135,24 @@ function ensureDbConnection() {
       bio TEXT NOT NULL,
       FOREIGN KEY (department_id) REFERENCES departments(id)
     );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      password_salt TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   return db;
@@ -167,16 +202,9 @@ async function ensureDb() {
     SELECT
       (SELECT COUNT(*) FROM departments) AS departments_count,
       (SELECT COUNT(*) FROM sections) AS sections_count,
-      (SELECT COUNT(*) FROM profiles) AS profiles_count
+      (SELECT COUNT(*) FROM profiles) AS profiles_count,
+      (SELECT COUNT(*) FROM users) AS users_count
   `).get();
-
-  if (
-    counts.departments_count > 0 &&
-    counts.sections_count > 0 &&
-    counts.profiles_count > 0
-  ) {
-    return database;
-  }
 
   const rawSeed = await readFile(seedPath, 'utf8');
   const seed = JSON.parse(rawSeed);
@@ -194,50 +222,79 @@ async function ensureDb() {
       facebook, full_name, email, phone, mobile, section, department_id, batch_start, bio
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertUser = database.prepare(`
+    INSERT OR REPLACE INTO users (
+      id, username, password_hash, password_salt, full_name, role, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
 
   try {
     database.exec('BEGIN');
 
-    for (const department of seed.departments) {
-      insertDepartment.run(
-        department.id,
-        department.name,
-        department.shortName,
-        department.image,
-        department.route,
-        department.description,
-        department.codePrefix,
-        department.defaultBatchStart,
-        department.defaultSection,
+    if (counts.departments_count === 0) {
+      for (const department of seed.departments) {
+        insertDepartment.run(
+          department.id,
+          department.name,
+          department.shortName,
+          department.image,
+          department.route,
+          department.description,
+          department.codePrefix,
+          department.defaultBatchStart,
+          department.defaultSection,
+        );
+      }
+    }
+
+    if (counts.sections_count === 0) {
+      for (const section of seed.sections) {
+        insertSection.run(section.id, section.name);
+      }
+    }
+
+    if (counts.profiles_count === 0) {
+      for (const [rollNumber, profile] of Object.entries(seed.profiles)) {
+        insertProfile.run(
+          rollNumber,
+          profile.imageSrc,
+          profile.name,
+          profile.qualifications,
+          profile.address,
+          profile.website,
+          profile.github,
+          profile.twitter,
+          profile.instagram,
+          profile.facebook,
+          profile.fullName,
+          profile.email,
+          profile.phone,
+          profile.mobile,
+          profile.section,
+          profile.departmentId,
+          profile.batchStart,
+          profile.bio,
+        );
+      }
+    }
+
+    if (counts.users_count === 0) {
+      const bootstrapUsername = process.env.ADMIN_USERNAME || 'admin';
+      const bootstrapPassword = process.env.ADMIN_PASSWORD || 'change-me-now';
+      const bootstrapName = process.env.ADMIN_NAME || 'Ace Connect Admin';
+      const { salt, hash } = hashPassword(bootstrapPassword);
+
+      insertUser.run(
+        randomBytes(16).toString('hex'),
+        bootstrapUsername,
+        hash,
+        salt,
+        bootstrapName,
+        'admin',
+        new Date().toISOString(),
       );
     }
 
-    for (const section of seed.sections) {
-      insertSection.run(section.id, section.name);
-    }
-
-    for (const [rollNumber, profile] of Object.entries(seed.profiles)) {
-      insertProfile.run(
-        rollNumber,
-        profile.imageSrc,
-        profile.name,
-        profile.qualifications,
-        profile.address,
-        profile.website,
-        profile.github,
-        profile.twitter,
-        profile.instagram,
-        profile.facebook,
-        profile.fullName,
-        profile.email,
-        profile.phone,
-        profile.mobile,
-        profile.section,
-        profile.departmentId,
-        profile.batchStart,
-        profile.bio,
-      );
-    }
     database.exec('COMMIT');
   } catch (error) {
     database.exec('ROLLBACK');
@@ -476,12 +533,132 @@ async function getStorageInfo() {
   };
 }
 
+async function getAuthConfig() {
+  const database = await ensureDb();
+  const count = database.prepare(`SELECT COUNT(*) AS count FROM users`).get();
+
+  return {
+    authEnabled: count.count > 0,
+    sessionCookieName: 'aceconnect_session',
+  };
+}
+
+async function authenticateUser(username, password) {
+  const database = await ensureDb();
+  const row = database.prepare(`
+    SELECT id, username, password_hash, password_salt, full_name, role, created_at
+    FROM users
+    WHERE username = ?
+  `).get(username);
+
+  if (!row) {
+    return null;
+  }
+
+  if (!verifyPassword(password, row.password_salt, row.password_hash)) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    username: row.username,
+    fullName: row.full_name,
+    role: row.role,
+    createdAt: row.created_at,
+  };
+}
+
+async function createSession(userId) {
+  const database = await ensureDb();
+  const now = new Date();
+  const sessionId = createSessionToken();
+  const expiresAt = new Date(now.getTime() + sessionDurationMs).toISOString();
+
+  database.prepare(`
+    INSERT INTO sessions (id, user_id, expires_at, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(sessionId, userId, expiresAt, now.toISOString());
+
+  return {
+    id: sessionId,
+    expiresAt,
+  };
+}
+
+async function getSessionUser(sessionId) {
+  if (!sessionId) {
+    return null;
+  }
+
+  const database = await ensureDb();
+  const row = database.prepare(`
+    SELECT
+      sessions.id AS session_id,
+      sessions.expires_at AS expires_at,
+      users.id AS user_id,
+      users.username AS username,
+      users.full_name AS full_name,
+      users.role AS role,
+      users.created_at AS created_at
+    FROM sessions
+    INNER JOIN users ON users.id = sessions.user_id
+    WHERE sessions.id = ?
+  `).get(sessionId);
+
+  if (!row) {
+    return null;
+  }
+
+  if (new Date(row.expires_at).getTime() <= Date.now()) {
+    await deleteSession(sessionId);
+    return null;
+  }
+
+  return {
+    sessionId: row.session_id,
+    expiresAt: row.expires_at,
+    user: {
+      id: row.user_id,
+      username: row.username,
+      fullName: row.full_name,
+      role: row.role,
+      createdAt: row.created_at,
+    },
+  };
+}
+
+async function deleteSession(sessionId) {
+  if (!sessionId) {
+    return;
+  }
+
+  const database = await ensureDb();
+  database.prepare(`DELETE FROM sessions WHERE id = ?`).run(sessionId);
+}
+
+async function changeUserPassword(userId, newPassword) {
+  const database = await ensureDb();
+  const { salt, hash } = hashPassword(newPassword);
+
+  database.prepare(`
+    UPDATE users
+    SET password_hash = ?, password_salt = ?
+    WHERE id = ?
+  `).run(hash, salt, userId);
+}
+
 export {
+  authenticateUser,
+  changeUserPassword,
+  createSession,
+  deleteSession,
+  getAuthConfig,
   getBatches,
   getDepartment,
   getDepartments,
   getProfile,
   getRollNumbers,
+  getSessionUser,
   getSections,
   getStorageInfo,
   listProfiles,

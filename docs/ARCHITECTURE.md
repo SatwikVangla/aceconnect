@@ -37,21 +37,25 @@ The server handles two jobs:
 
 ## Data Model
 
-The backend stores three logical entities:
+The backend stores five logical entities:
 
 - departments
 - sections
 - profiles
+- users
+- sessions
 
 Roll numbers are generated from department code and batch metadata instead of being stored as a separate table.
 
 ## Auth Model
 
-Admin write protection is header-based.
+Authentication is session-based.
 
-- If `ADMIN_TOKEN` is not set, write routes are open.
-- If `ADMIN_TOKEN` is set, protected routes require `X-Admin-Token`.
-- The frontend stores the token in browser `localStorage` after validation.
+- Users are stored in SQLite with salted password hashes.
+- Successful login creates a row in the `sessions` table.
+- The server returns an HTTP-only `aceconnect_session` cookie.
+- Protected write routes require a valid session whose user role is `admin` or `editor`.
+- The profile page uses `/api/auth/me` to decide whether to show the login form or the editor.
 
 ## Storage Strategy
 
@@ -65,7 +69,7 @@ The seed JSON file exists only to initialize a fresh database.
 
 ## Current Limits
 
-- no user accounts or sessions
-- no role-based permissions beyond one admin token
+- no self-service user creation screen
+- no role-management UI
 - no separate student table
 - no department-specific modules beyond the current CSE flow

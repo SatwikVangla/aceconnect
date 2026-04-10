@@ -4,11 +4,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  authenticateUser,
+  changeUserPassword,
+  createSession,
+  deleteSession,
+  getAuthConfig,
   getBatches,
   getDepartment,
   getDepartments,
   getProfile,
   getRollNumbers,
+  getSessionUser,
   getSections,
   getStorageInfo,
   listProfiles,
@@ -21,7 +27,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '127.0.0.1';
-const adminToken = process.env.ADMIN_TOKEN || '';
+const sessionCookieName = 'aceconnect_session';
 
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -38,8 +44,8 @@ function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
   });
   response.end(JSON.stringify(payload));
 }
@@ -47,10 +53,21 @@ function sendJson(response, statusCode, payload) {
 function sendNoContent(response) {
   response.writeHead(204, {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
   });
   response.end();
+}
+
+function sendJsonWithHeaders(response, statusCode, payload, extraHeaders = {}) {
+  response.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    ...extraHeaders,
+  });
+  response.end(JSON.stringify(payload));
 }
 
 async function readJsonBody(request) {
@@ -90,22 +107,49 @@ async function serveStatic(response, pathname) {
   }
 }
 
-function isAdminAuthorized(request) {
-  if (!adminToken) {
-    return true;
+function parseCookies(request) {
+  const raw = request.headers.cookie;
+
+  if (!raw) {
+    return {};
   }
 
-  const headerToken = request.headers['x-admin-token'];
-  return typeof headerToken === 'string' && headerToken === adminToken;
+  return raw.split(';').reduce((cookies, pair) => {
+    const separatorIndex = pair.indexOf('=');
+
+    if (separatorIndex === -1) {
+      return cookies;
+    }
+
+    const key = pair.slice(0, separatorIndex).trim();
+    const value = pair.slice(separatorIndex + 1).trim();
+    cookies[key] = decodeURIComponent(value);
+    return cookies;
+  }, {});
 }
 
-function requireAdmin(request, response) {
-  if (isAdminAuthorized(request)) {
-    return true;
+function buildSessionCookie(sessionId, expiresAt) {
+  return `${sessionCookieName}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax; Expires=${new Date(expiresAt).toUTCString()}`;
+}
+
+function clearSessionCookie() {
+  return `${sessionCookieName}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+
+async function getRequestSession(request) {
+  const cookies = parseCookies(request);
+  return getSessionUser(cookies[sessionCookieName]);
+}
+
+async function requireEditorSession(request, response) {
+  const session = await getRequestSession(request);
+
+  if (session && ['admin', 'editor'].includes(session.user.role)) {
+    return session;
   }
 
-  sendJson(response, 401, { error: 'Admin authorization required' });
-  return false;
+  sendJson(response, 401, { error: 'Authenticated editor session required' });
+  return null;
 }
 
 const server = createServer(async (request, response) => {
@@ -126,28 +170,88 @@ const server = createServer(async (request, response) => {
     sendJson(response, 200, {
       ok: true,
       ...(await getStorageInfo()),
+      auth: await getAuthConfig(),
     });
     return;
   }
 
-  if (pathname === '/api/admin/config' && request.method === 'GET') {
+  if (pathname === '/api/auth/config' && request.method === 'GET') {
+    sendJson(response, 200, await getAuthConfig());
+    return;
+  }
+
+  if (pathname === '/api/auth/me' && request.method === 'GET') {
+    const session = await getRequestSession(request);
     sendJson(response, 200, {
-      authEnabled: Boolean(adminToken),
+      authenticated: Boolean(session),
+      user: session?.user ?? null,
     });
     return;
   }
 
-  if (pathname === '/api/admin/session' && request.method === 'POST') {
+  if (pathname === '/api/auth/login' && request.method === 'POST') {
     try {
       const body = await readJsonBody(request);
-      const providedToken = typeof body.token === 'string' ? body.token : '';
-      const valid = !adminToken || providedToken === adminToken;
+      const username = typeof body.username === 'string' ? body.username.trim() : '';
+      const password = typeof body.password === 'string' ? body.password : '';
+      const user = await authenticateUser(username, password);
 
-      if (!valid) {
-        sendJson(response, 401, { error: 'Invalid admin token' });
+      if (!user) {
+        sendJson(response, 401, { error: 'Invalid username or password' });
         return;
       }
 
+      const session = await createSession(user.id);
+      sendJsonWithHeaders(
+        response,
+        200,
+        {
+          ok: true,
+          user,
+        },
+        {
+          'Set-Cookie': buildSessionCookie(session.id, session.expiresAt),
+        },
+      );
+    } catch {
+      sendJson(response, 400, { error: 'Invalid JSON body' });
+    }
+    return;
+  }
+
+  if (pathname === '/api/auth/logout' && request.method === 'POST') {
+    const session = await getRequestSession(request);
+
+    if (session) {
+      await deleteSession(session.sessionId);
+    }
+
+    sendJsonWithHeaders(
+      response,
+      200,
+      { ok: true },
+      { 'Set-Cookie': clearSessionCookie() },
+    );
+    return;
+  }
+
+  if (pathname === '/api/auth/change-password' && request.method === 'POST') {
+    const session = await requireEditorSession(request, response);
+
+    if (!session) {
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const nextPassword = typeof body.newPassword === 'string' ? body.newPassword.trim() : '';
+
+      if (nextPassword.length < 8) {
+        sendJson(response, 400, { error: 'New password must be at least 8 characters long' });
+        return;
+      }
+
+      await changeUserPassword(session.user.id, nextPassword);
       sendJson(response, 200, { ok: true });
     } catch {
       sendJson(response, 400, { error: 'Invalid JSON body' });
@@ -238,7 +342,7 @@ const server = createServer(async (request, response) => {
   }
 
   if (pathname === '/api/profiles/seed' && request.method === 'POST') {
-    if (!requireAdmin(request, response)) {
+    if (!(await requireEditorSession(request, response))) {
       return;
     }
 
@@ -264,7 +368,7 @@ const server = createServer(async (request, response) => {
   }
 
   if (profileMatch && request.method === 'PUT') {
-    if (!requireAdmin(request, response)) {
+    if (!(await requireEditorSession(request, response))) {
       return;
     }
 
