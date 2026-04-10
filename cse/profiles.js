@@ -70,58 +70,6 @@ async function changePassword(newPassword) {
   }
 }
 
-async function fetchUsers() {
-  const response = await fetch('/api/users');
-
-  if (!response.ok) {
-    throw new Error(`Failed to load users: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-async function createUser(payload) {
-  const response = await fetch('/api/users', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Create user failed: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-async function updateUser(userId, payload) {
-  const response = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Update user failed: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-async function deleteUser(userId) {
-  const response = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
-    method: 'DELETE',
-  });
-
-  if (!response.ok) {
-    throw new Error(`Delete user failed: ${response.status}`);
-  }
-}
-
 function profileRender(profile) {
   profileContainerEl.innerHTML = `
     <div class="main-body">
@@ -360,40 +308,13 @@ function renderEditor(profile, authState) {
           ${
             authState.user?.role === 'admin'
               ? `
-                <section class="user-management mt-4">
-                  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                    <h3 class="h5 mb-0">User Management</h3>
-                    <span class="text-muted small">Admins can create, edit, and remove user accounts.</span>
-                  </div>
-                  <form class="user-create-form row g-3 mb-4">
-                    <div class="col-md-4">
-                      <label class="form-label" for="newUsername">Username</label>
-                      <input class="form-control" id="newUsername" name="username" autocomplete="username">
+                <section class="admin-shortcut mt-4">
+                  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                      <h3 class="h5 mb-1">Admin Tools</h3>
+                      <p class="text-muted mb-0">User and access management now lives in the dedicated admin dashboard.</p>
                     </div>
-                    <div class="col-md-4">
-                      <label class="form-label" for="newFullName">Full Name</label>
-                      <input class="form-control" id="newFullName" name="fullName">
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label" for="newRole">Role</label>
-                      <select class="form-select" id="newRole" name="role">
-                        <option value="editor">Editor</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-                    <div class="col-md-8">
-                      <label class="form-label" for="newUserPassword">Password</label>
-                      <input class="form-control" id="newUserPassword" name="password" type="password" minlength="8" autocomplete="new-password">
-                    </div>
-                    <div class="col-md-4 d-flex align-items-end">
-                      <button type="submit" class="btn btn-outline-primary w-100">Create User</button>
-                    </div>
-                    <div class="col-12">
-                      <span class="user-create-status text-muted"></span>
-                    </div>
-                  </form>
-                  <div class="user-list-container">
-                    <p class="text-muted mb-0">Loading users...</p>
+                    <a class="btn btn-outline-primary" href="admin.html">Open Admin Dashboard</a>
                   </div>
                 </section>
               `
@@ -410,94 +331,6 @@ function renderEditor(profile, authState) {
   const passwordFormEl = profileEditorContainerEl.querySelector('.password-form');
   const passwordStatusEl = profileEditorContainerEl.querySelector('.password-status');
   const changePasswordButtonEl = profileEditorContainerEl.querySelector('.change-password');
-  const userCreateFormEl = profileEditorContainerEl.querySelector('.user-create-form');
-  const userCreateStatusEl = profileEditorContainerEl.querySelector('.user-create-status');
-  const userListContainerEl = profileEditorContainerEl.querySelector('.user-list-container');
-
-  async function refreshUsers() {
-    if (!userListContainerEl) {
-      return;
-    }
-
-    try {
-      const users = await fetchUsers();
-      userListContainerEl.innerHTML = `
-        <div class="user-list">
-          ${users
-            .map(
-              (user) => `
-                <form class="user-row row g-2 align-items-end" data-user-id="${user.id}">
-                  <div class="col-md-3">
-                    <label class="form-label">Username</label>
-                    <input class="form-control" value="${user.username}" disabled>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Full Name</label>
-                    <input class="form-control" name="fullName" value="${user.fullName}">
-                  </div>
-                  <div class="col-md-2">
-                    <label class="form-label">Role</label>
-                    <select class="form-select" name="role">
-                      <option value="editor" ${user.role === 'editor' ? 'selected' : ''}>Editor</option>
-                      <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
-                    </select>
-                  </div>
-                  <div class="col-md-2">
-                    <button type="submit" class="btn btn-outline-secondary w-100">Update</button>
-                  </div>
-                  <div class="col-md-2">
-                    <button type="button" class="btn btn-outline-danger w-100 delete-user">Delete</button>
-                  </div>
-                  <div class="col-12">
-                    <span class="user-row-status text-muted small"></span>
-                  </div>
-                </form>
-              `,
-            )
-            .join('')}
-        </div>
-      `;
-
-      for (const rowEl of userListContainerEl.querySelectorAll('.user-row')) {
-        const statusRowEl = rowEl.querySelector('.user-row-status');
-        const deleteButtonEl = rowEl.querySelector('.delete-user');
-        const userId = rowEl.dataset.userId;
-
-        rowEl.addEventListener('submit', async (event) => {
-          event.preventDefault();
-          statusRowEl.textContent = 'Updating...';
-
-          const formData = new FormData(rowEl);
-
-          try {
-            const updatedUser = await updateUser(userId, {
-              fullName: String(formData.get('fullName') ?? ''),
-              role: String(formData.get('role') ?? ''),
-            });
-            statusRowEl.textContent = `Updated ${updatedUser.username}.`;
-          } catch (error) {
-            console.error(error);
-            statusRowEl.textContent = 'Update failed.';
-          }
-        });
-
-        deleteButtonEl.addEventListener('click', async () => {
-          statusRowEl.textContent = 'Deleting...';
-
-          try {
-            await deleteUser(userId);
-            await refreshUsers();
-          } catch (error) {
-            console.error(error);
-            statusRowEl.textContent = 'Delete failed.';
-          }
-        });
-      }
-    } catch (error) {
-      console.error(error);
-      userListContainerEl.innerHTML = '<p class="text-muted mb-0">Unable to load users.</p>';
-    }
-  }
 
   if (logoutButtonEl) {
     logoutButtonEl.addEventListener('click', async () => {
@@ -533,32 +366,6 @@ function renderEditor(profile, authState) {
       passwordStatusEl.textContent = 'Password update failed. Use at least 8 characters.';
     }
   });
-
-  if (userCreateFormEl) {
-    userCreateFormEl.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      userCreateStatusEl.textContent = 'Creating user...';
-
-      const formData = new FormData(userCreateFormEl);
-
-      try {
-        const user = await createUser({
-          username: String(formData.get('username') ?? ''),
-          fullName: String(formData.get('fullName') ?? ''),
-          role: String(formData.get('role') ?? ''),
-          password: String(formData.get('password') ?? ''),
-        });
-        userCreateFormEl.reset();
-        userCreateStatusEl.textContent = `Created ${user.username}.`;
-        await refreshUsers();
-      } catch (error) {
-        console.error(error);
-        userCreateStatusEl.textContent = 'Create user failed.';
-      }
-    });
-
-    refreshUsers();
-  }
 
   formEl.addEventListener('submit', async (event) => {
     event.preventDefault();

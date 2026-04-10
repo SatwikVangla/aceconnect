@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+
+.navbar-image {
+  position: relative;
+}
+
+.navbar-text {
+  font-size: 25px;
+  font-family: "Merriweather", sans-serif;
+  font-weight: bold;
+  padding-left: 4px;
+  position: absolute;
+  top: 3px;
+}
+
+.heading {
+  text-align: center;
+  padding-top: 5rem;
+  font-family: "Open Sans", sans-serif;
+}
+
+body {
+  margin-top: 20px;
+  color: #1a202c;
+  background: linear-gradient(180deg, #e2e8f0 0%, #f8fafc 100%);
+}
+
+.admin-container {
+  max-width: 1120px;
+  margin: 2rem auto 4rem;
+}
+
+.dashboard-card,
+.auth-card,
+.user-row {
+  border: 0;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  padding: 1.25rem;
+}
+
+.stat-label {
+  color: #64748b;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.admin-section-title {
+  font-family: "Merriweather", sans-serif;
+}
+
+.user-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.user-row {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 1rem;
+}
+
+.status-line {
+  min-height: 24px;
+}
+
+.footer-class {
+  text-align: center;
+  padding-bottom: 2rem;
+}

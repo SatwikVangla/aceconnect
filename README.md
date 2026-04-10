@@ -52,7 +52,7 @@ Frontend behavior:
 - login creates an HTTP-only session cookie
 - logout clears the session
 - authenticated users can change their password from the profile page
-- admin users can manage other users from the profile page
+- admin users can open a dedicated admin dashboard page for user management
 
 ## User Management
 
@@ -62,6 +62,7 @@ Admins can:
 - create admin or editor accounts
 - update another user's full name and role
 - delete another user account
+- access those controls from `cse/admin.html`
 
 Safety rules:
 

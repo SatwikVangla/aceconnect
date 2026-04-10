@@ -102,21 +102,9 @@ body {
   min-height: 24px;
 }
 
-.user-management {
+.admin-shortcut {
   border-top: 1px solid #e2e8f0;
   padding-top: 1.5rem;
-}
-
-.user-list {
-  display: grid;
-  gap: 1rem;
-}
-
-.user-row {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 1rem;
 }
 
 .footer-class {

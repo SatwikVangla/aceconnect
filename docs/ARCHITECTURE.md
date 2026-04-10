@@ -57,6 +57,7 @@ Authentication is session-based.
 - Protected write routes require a valid session whose user role is `admin` or `editor`.
 - The profile page uses `/api/auth/me` to decide whether to show the login form or the editor.
 - Admin-only user-management endpoints allow account creation, role updates, and deletion.
+- A dedicated admin dashboard page provides the UI for those admin-only operations.
 
 ## Storage Strategy
 

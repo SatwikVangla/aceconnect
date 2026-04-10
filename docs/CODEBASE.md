@@ -108,6 +108,28 @@ Main responsibilities:
 
 Styles the profile layout and editor card.
 
+### [`cse/admin.html`](/home/satwik/aceconnect/cse/admin.html)
+
+Dedicated admin dashboard shell.
+
+### [`cse/admin.js`](/home/satwik/aceconnect/cse/admin.js)
+
+Admin dashboard controller.
+
+Main responsibilities:
+
+- require an admin session
+- render login or forbidden states when needed
+- list users
+- create users
+- update users
+- delete users
+- expose logout and password-change actions for the current admin
+
+### [`cse/admin.css`](/home/satwik/aceconnect/cse/admin.css)
+
+Styles the dedicated admin dashboard layout and user-management cards.
+
 ## Backend
 
 ### [`backend/server.js`](/home/satwik/aceconnect/backend/server.js)
