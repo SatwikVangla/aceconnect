@@ -1,2 +1,5 @@
 node_modules
 .codex
+backend/aceconnect.sqlite
+backend/aceconnect.sqlite-shm
+backend/aceconnect.sqlite-wal

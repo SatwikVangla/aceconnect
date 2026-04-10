@@ -1,0 +1,88 @@
+{
+  "departments": [
+    {
+      "id": "cse",
+      "name": "Computer Science and Engineering",
+      "shortName": "CSE",
+      "image": "/images/CSE-230x230.jpeg",
+      "route": "/cse/cse.html?department=cse",
+      "description": "Batch browser with sections, roll numbers, and profile data.",
+      "codePrefix": "AG1A0",
+      "defaultBatchStart": 2022,
+      "defaultSection": "A"
+    }
+  ],
+  "sections": [
+    {
+      "id": "A",
+      "name": "Section A"
+    },
+    {
+      "id": "B",
+      "name": "Section B"
+    },
+    {
+      "id": "C",
+      "name": "Section C"
+    }
+  ],
+  "profiles": {
+    "22AG1A0501": {
+      "imageSrc": "https://bootdey.com/img/Content/avatar/avatar7.png",
+      "name": "22AG1A0501",
+      "qualifications": "Full Stack Developer",
+      "address": "Bay Area, San Francisco, CA",
+      "website": "https://bootdey.com",
+      "github": "bootdey",
+      "twitter": "@bootdey",
+      "instagram": "bootdey",
+      "facebook": "bootdey",
+      "fullName": "Student 22AG1A0501",
+      "email": "22ag1a0501@aceconnect.dev",
+      "phone": "(239) 816-9029",
+      "mobile": "(320) 380-4539",
+      "section": "A",
+      "departmentId": "cse",
+      "batchStart": 2022,
+      "bio": "Sample alumni profile used to seed the SQLite database on first run."
+    },
+    "22AG1A0502": {
+      "imageSrc": "https://bootdey.com/img/Content/avatar/avatar7.png",
+      "name": "22AG1A0502",
+      "qualifications": "Student",
+      "address": "",
+      "website": "",
+      "github": "",
+      "twitter": "",
+      "instagram": "",
+      "facebook": "",
+      "fullName": "Satwik Test",
+      "email": "satwik.test@aceconnect.dev",
+      "phone": "",
+      "mobile": "",
+      "section": "A",
+      "departmentId": "cse",
+      "batchStart": 2022,
+      "bio": "Updated through PUT endpoint."
+    },
+    "22AG1A0503": {
+      "imageSrc": "https://bootdey.com/img/Content/avatar/avatar7.png",
+      "name": "22AG1A0503",
+      "qualifications": "Student",
+      "address": "Update address",
+      "website": "",
+      "github": "",
+      "twitter": "",
+      "instagram": "",
+      "facebook": "",
+      "fullName": "Authorized Update",
+      "email": "authorized@aceconnect.dev",
+      "phone": "",
+      "mobile": "",
+      "section": "A",
+      "departmentId": "cse",
+      "batchStart": 2022,
+      "bio": "New backend-backed profile."
+    }
+  }
+}

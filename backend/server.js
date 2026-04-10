@@ -10,6 +10,7 @@ import {
   getProfile,
   getRollNumbers,
   getSections,
+  getStorageInfo,
   listProfiles,
   saveProfile,
   seedGeneratedProfiles,
@@ -122,7 +123,10 @@ const server = createServer(async (request, response) => {
   }
 
   if (pathname === '/api/health') {
-    sendJson(response, 200, { ok: true });
+    sendJson(response, 200, {
+      ok: true,
+      ...(await getStorageInfo()),
+    });
     return;
   }
 
