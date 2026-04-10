@@ -8,6 +8,20 @@ Detailed documentation:
 - [API Reference](./docs/API.md)
 - [Codebase Guide](./docs/CODEBASE.md)
 
+## Screenshots
+
+Add screenshots to these paths to make the README render output previews:
+
+- `docs/images/home.png`
+- `docs/images/profile.png`
+- `docs/images/admin-dashboard.png`
+
+Once those files exist, GitHub will render them below automatically:
+
+![Home](docs/images/home.png)
+![Profile](docs/images/profile.png)
+![Admin Dashboard](docs/images/admin-dashboard.png)
+
 ## Run
 
 ```bash
