@@ -101,6 +101,7 @@ Main responsibilities:
 - render the login form when the user is not authenticated
 - render the editor form
 - call login, logout, and change-password endpoints
+- render the admin user-management panel when the logged-in user is an admin
 - submit profile updates to `PUT /api/profiles/:rollNumber`
 
 ### [`cse/profile.css`](/home/satwik/aceconnect/cse/profile.css)
@@ -135,6 +136,7 @@ Main responsibilities:
 - generate batches and roll numbers
 - hash and verify user passwords
 - create and validate sessions
+- create, list, update, and delete users
 - read profiles
 - save profiles
 - seed missing generated profiles

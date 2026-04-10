@@ -7,7 +7,9 @@ import {
   authenticateUser,
   changeUserPassword,
   createSession,
+  createUser,
   deleteSession,
+  deleteUser,
   getAuthConfig,
   getBatches,
   getDepartment,
@@ -17,9 +19,11 @@ import {
   getSessionUser,
   getSections,
   getStorageInfo,
+  listUsers,
   listProfiles,
   saveProfile,
   seedGeneratedProfiles,
+  updateUser,
 } from './data.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -152,6 +156,17 @@ async function requireEditorSession(request, response) {
   return null;
 }
 
+async function requireAdminSession(request, response) {
+  const session = await getRequestSession(request);
+
+  if (session && session.user.role === 'admin') {
+    return session;
+  }
+
+  sendJson(response, 403, { error: 'Admin session required' });
+  return null;
+}
+
 const server = createServer(async (request, response) => {
   if (!request.url) {
     sendJson(response, 400, { error: 'Invalid request' });
@@ -255,6 +270,119 @@ const server = createServer(async (request, response) => {
       sendJson(response, 200, { ok: true });
     } catch {
       sendJson(response, 400, { error: 'Invalid JSON body' });
+    }
+    return;
+  }
+
+  if (pathname === '/api/users' && request.method === 'GET') {
+    if (!(await requireAdminSession(request, response))) {
+      return;
+    }
+
+    sendJson(response, 200, await listUsers());
+    return;
+  }
+
+  if (pathname === '/api/users' && request.method === 'POST') {
+    const session = await requireAdminSession(request, response);
+
+    if (!session) {
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const user = await createUser({
+        username: typeof body.username === 'string' ? body.username : '',
+        password: typeof body.password === 'string' ? body.password : '',
+        fullName: typeof body.fullName === 'string' ? body.fullName : '',
+        role: typeof body.role === 'string' ? body.role : 'editor',
+      });
+      sendJson(response, 201, user);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'USERNAME_EXISTS') {
+        sendJson(response, 409, { error: 'Username already exists' });
+        return;
+      }
+
+      if (error instanceof Error && error.message === 'INVALID_USER_INPUT') {
+        sendJson(response, 400, { error: 'Invalid user input' });
+        return;
+      }
+
+      sendJson(response, 400, { error: 'Unable to create user' });
+    }
+    return;
+  }
+
+  const userMatch = pathname.match(/^\/api\/users\/([^/]+)$/);
+
+  if (userMatch && request.method === 'PUT') {
+    const session = await requireAdminSession(request, response);
+
+    if (!session) {
+      return;
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      const user = await updateUser(
+        decodeURIComponent(userMatch[1]),
+        {
+          fullName: typeof body.fullName === 'string' ? body.fullName : undefined,
+          role: typeof body.role === 'string' ? body.role : undefined,
+        },
+        session.user.id,
+      );
+      sendJson(response, 200, user);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+        sendJson(response, 404, { error: 'User not found' });
+        return;
+      }
+
+      if (error instanceof Error && error.message === 'INVALID_USER_INPUT') {
+        sendJson(response, 400, { error: 'Invalid user input' });
+        return;
+      }
+
+      if (error instanceof Error && error.message === 'CANNOT_CHANGE_OWN_ROLE') {
+        sendJson(response, 400, { error: 'You cannot change your own role' });
+        return;
+      }
+
+      sendJson(response, 400, { error: 'Unable to update user' });
+    }
+    return;
+  }
+
+  if (userMatch && request.method === 'DELETE') {
+    const session = await requireAdminSession(request, response);
+
+    if (!session) {
+      return;
+    }
+
+    try {
+      await deleteUser(decodeURIComponent(userMatch[1]), session.user.id);
+      sendNoContent(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+        sendJson(response, 404, { error: 'User not found' });
+        return;
+      }
+
+      if (error instanceof Error && error.message === 'CANNOT_DELETE_SELF') {
+        sendJson(response, 400, { error: 'You cannot delete your own account' });
+        return;
+      }
+
+      if (error instanceof Error && error.message === 'CANNOT_DELETE_LAST_ADMIN') {
+        sendJson(response, 400, { error: 'You cannot delete the last admin user' });
+        return;
+      }
+
+      sendJson(response, 400, { error: 'Unable to delete user' });
     }
     return;
   }

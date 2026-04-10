@@ -195,6 +195,16 @@ function mapProfile(row) {
   };
 }
 
+function mapUser(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    fullName: row.full_name,
+    role: row.role,
+    createdAt: row.created_at,
+  };
+}
+
 async function ensureDb() {
   await mkdir(__dirname, { recursive: true });
   const database = ensureDbConnection();
@@ -647,11 +657,132 @@ async function changeUserPassword(userId, newPassword) {
   `).run(hash, salt, userId);
 }
 
+async function listUsers() {
+  const database = await ensureDb();
+  const rows = database.prepare(`
+    SELECT id, username, full_name, role, created_at
+    FROM users
+    ORDER BY created_at ASC
+  `).all();
+
+  return rows.map(mapUser);
+}
+
+async function createUser({ username, password, fullName, role }) {
+  const database = await ensureDb();
+  const normalizedUsername = username.trim().toLowerCase();
+  const normalizedFullName = fullName.trim();
+  const normalizedRole = role === 'editor' ? 'editor' : 'admin';
+
+  if (!normalizedUsername || !normalizedFullName || password.trim().length < 8) {
+    throw new Error('INVALID_USER_INPUT');
+  }
+
+  const existing = database.prepare(`
+    SELECT id
+    FROM users
+    WHERE username = ?
+  `).get(normalizedUsername);
+
+  if (existing) {
+    throw new Error('USERNAME_EXISTS');
+  }
+
+  const { salt, hash } = hashPassword(password.trim());
+  const id = randomBytes(16).toString('hex');
+  const createdAt = new Date().toISOString();
+
+  database.prepare(`
+    INSERT INTO users (id, username, password_hash, password_salt, full_name, role, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, normalizedUsername, hash, salt, normalizedFullName, normalizedRole, createdAt);
+
+  return {
+    id,
+    username: normalizedUsername,
+    fullName: normalizedFullName,
+    role: normalizedRole,
+    createdAt,
+  };
+}
+
+async function updateUser(userId, updates, actingUserId) {
+  const database = await ensureDb();
+  const existing = database.prepare(`
+    SELECT id, username, full_name, role, created_at
+    FROM users
+    WHERE id = ?
+  `).get(userId);
+
+  if (!existing) {
+    throw new Error('USER_NOT_FOUND');
+  }
+
+  const nextFullName = typeof updates.fullName === 'string' ? updates.fullName.trim() : existing.full_name;
+  const nextRole = updates.role === 'editor' || updates.role === 'admin' ? updates.role : existing.role;
+
+  if (!nextFullName) {
+    throw new Error('INVALID_USER_INPUT');
+  }
+
+  if (existing.id === actingUserId && nextRole !== existing.role) {
+    throw new Error('CANNOT_CHANGE_OWN_ROLE');
+  }
+
+  database.prepare(`
+    UPDATE users
+    SET full_name = ?, role = ?
+    WHERE id = ?
+  `).run(nextFullName, nextRole, userId);
+
+  return {
+    id: existing.id,
+    username: existing.username,
+    fullName: nextFullName,
+    role: nextRole,
+    createdAt: existing.created_at,
+  };
+}
+
+async function deleteUser(userId, actingUserId) {
+  const database = await ensureDb();
+  const existing = database.prepare(`
+    SELECT id, role
+    FROM users
+    WHERE id = ?
+  `).get(userId);
+
+  if (!existing) {
+    throw new Error('USER_NOT_FOUND');
+  }
+
+  if (existing.id === actingUserId) {
+    throw new Error('CANNOT_DELETE_SELF');
+  }
+
+  if (existing.role === 'admin') {
+    const adminCount = database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM users
+      WHERE role = 'admin'
+    `).get();
+
+    if (adminCount.count <= 1) {
+      throw new Error('CANNOT_DELETE_LAST_ADMIN');
+    }
+  }
+
+  database.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(userId);
+  database.prepare(`DELETE FROM users WHERE id = ?`).run(userId);
+}
+
 export {
   authenticateUser,
   changeUserPassword,
   createSession,
+  createUser,
   deleteSession,
+  deleteUser,
   getAuthConfig,
   getBatches,
   getDepartment,
@@ -661,7 +792,9 @@ export {
   getSessionUser,
   getSections,
   getStorageInfo,
+  listUsers,
   listProfiles,
   saveProfile,
   seedGeneratedProfiles,
+  updateUser,
 };

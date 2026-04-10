@@ -56,6 +56,7 @@ Authentication is session-based.
 - The server returns an HTTP-only `aceconnect_session` cookie.
 - Protected write routes require a valid session whose user role is `admin` or `editor`.
 - The profile page uses `/api/auth/me` to decide whether to show the login form or the editor.
+- Admin-only user-management endpoints allow account creation, role updates, and deletion.
 
 ## Storage Strategy
 

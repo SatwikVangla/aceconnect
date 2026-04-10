@@ -64,6 +64,46 @@ Request body:
 }
 ```
 
+## Users
+
+### `GET /api/users`
+
+Requires an authenticated `admin` session.
+
+Returns all users without password fields.
+
+### `POST /api/users`
+
+Requires an authenticated `admin` session.
+
+Request body:
+
+```json
+{
+  "username": "editor1",
+  "fullName": "Editor One",
+  "role": "editor",
+  "password": "strong-password"
+}
+```
+
+### `PUT /api/users/:userId`
+
+Requires an authenticated `admin` session.
+
+Request body:
+
+```json
+{
+  "fullName": "Updated Name",
+  "role": "admin"
+}
+```
+
+### `DELETE /api/users/:userId`
+
+Requires an authenticated `admin` session.
+
 ## Departments
 
 ### `GET /api/departments`

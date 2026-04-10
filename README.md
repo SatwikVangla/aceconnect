@@ -52,6 +52,22 @@ Frontend behavior:
 - login creates an HTTP-only session cookie
 - logout clears the session
 - authenticated users can change their password from the profile page
+- admin users can manage other users from the profile page
+
+## User Management
+
+Admins can:
+
+- list all users
+- create admin or editor accounts
+- update another user's full name and role
+- delete another user account
+
+Safety rules:
+
+- an admin cannot delete their own account
+- an admin cannot delete the last remaining admin
+- an admin cannot change their own role through the user-management panel
 
 ## Backend Storage
 
