@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+
+.navbar-image{
+  position: relative;
+}
+
+.navbar-text {
+  font-size: 25px;
+  font-family: "Merriweather", sans-serif;
+  font-weight: bold;
+  padding-left: 4px;
+  position: absolute;
+  top: 3px;
+}
+
+.heading{
+  text-align: center;
+  padding-top: 5rem;
+  font-family: "Open Sans",sans-serif;
+}
+
+.btn-container{
+  display: grid;
+  grid-template-columns: 75%;
+  justify-content: center;
+  align-items: center;
+  /* height: 100vh; */
+}
+
+
+.cse-button{
+ padding-top: 10px;
+ padding-bottom: 10px;
+ margin-top: 1rem;
+ margin-bottom: 1rem;
+ width: 100%;
+}
+
+.no-decoration{
+  text-decoration: none;
+}
+
+.footer-class{
+  text-align: center;
+  bottom: 0;
+}
