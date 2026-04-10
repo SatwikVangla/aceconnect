@@ -1,6 +1,6 @@
 # Ace Connect
 
-Ace Connect is a static frontend plus a small Node backend for browsing departments, batches, sections, roll numbers, and editable student profiles.
+Ace Connect is a small full-stack student directory app. It serves a browser frontend, a session-based Node backend, SQLite persistence, an admin dashboard, and cohort/student/profile management.
 
 Detailed documentation:
 
@@ -8,19 +8,13 @@ Detailed documentation:
 - [API Reference](./docs/API.md)
 - [Codebase Guide](./docs/CODEBASE.md)
 
-## Screenshots
+## Preview Images
 
-Add screenshots to these paths to make the README render output previews:
+The repo now includes lightweight page previews for the main flows:
 
-- `docs/images/home.png`
-- `docs/images/profile.png`
-- `docs/images/admin-dashboard.png`
-
-Once those files exist, GitHub will render them below automatically:
-
-![Home](docs/images/home.png)
-![Profile](docs/images/profile.png)
-![Admin Dashboard](docs/images/admin-dashboard.png)
+![Home](docs/images/home.svg)
+![Profile](docs/images/profile.svg)
+![Admin Dashboard](docs/images/admin-dashboard.svg)
 
 ## Run
 
@@ -29,6 +23,12 @@ npm start
 ```
 
 The app starts on `http://127.0.0.1:3000`.
+
+Run tests with:
+
+```bash
+npm test
+```
 
 ## Storage
 
@@ -67,6 +67,7 @@ Frontend behavior:
 - logout clears the session
 - authenticated users can change their password from the profile page
 - admin users can open a dedicated admin dashboard page for user management
+- the homepage now includes direct shortcuts to the cohort browser, sample profile, and admin dashboard
 
 ## User Management
 
@@ -78,6 +79,18 @@ Admins can:
 - delete another user account
 - access those controls from `cse/admin.html`
 
+## Student Management
+
+Admins can also manage persisted student records from the dedicated admin dashboard.
+
+- list cohort students through `GET /api/students`
+- create students through `POST /api/students`
+- update students through `PUT /api/students/:rollNumber`
+- delete students through `DELETE /api/students/:rollNumber`
+- open the linked profile page directly from the dashboard
+
+Profile edits stay synchronized with the student table for shared fields like name, email, phone, section, batch, and department.
+
 Safety rules:
 
 - an admin cannot delete their own account
@@ -87,3 +100,18 @@ Safety rules:
 ## Backend Storage
 
 Profile data is stored in SQLite at runtime and bootstrapped from [`backend/seed-data.json`](/home/satwik/aceconnect/backend/seed-data.json).
+
+## Deployment
+
+The repo now includes deployment-ready files:
+
+- [`Dockerfile`](/home/satwik/aceconnect/Dockerfile)
+- [`.dockerignore`](/home/satwik/aceconnect/.dockerignore)
+- [`render.yaml`](/home/satwik/aceconnect/render.yaml)
+
+Quick Docker run:
+
+```bash
+docker build -t aceconnect .
+docker run -p 3000:3000 aceconnect
+```

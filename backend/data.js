@@ -7,8 +7,8 @@ import { DatabaseSync } from 'node:sqlite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const sqlitePath = path.join(__dirname, 'aceconnect.sqlite');
-const seedPath = path.join(__dirname, 'seed-data.json');
+const sqlitePath = process.env.ACECONNECT_SQLITE_PATH || path.join(__dirname, 'aceconnect.sqlite');
+const seedPath = process.env.ACECONNECT_SEED_PATH || path.join(__dirname, 'seed-data.json');
 const sessionDurationMs = 1000 * 60 * 60 * 24 * 7;
 
 let db;
@@ -44,7 +44,36 @@ function getBatches() {
   return batches;
 }
 
-function createDefaultProfile({ rollNumber, section = 'A', departmentId = 'cse', batchStart = 2022 }) {
+function buildGeneratedStudentsForCohort(department, batchStart, section) {
+  const safeBatchStart = Number(batchStart) || department.defaultBatchStart || 2022;
+  const safeSection = section || department.defaultSection || 'A';
+  const yearCode = String(safeBatchStart).slice(-2);
+  const baseCode = `${yearCode}${department.codePrefix}`;
+  const lateralCode = `${String(safeBatchStart + 1).slice(-2)}${department.codePrefix}`;
+  const students = [];
+
+  for (let index = 0; index < 70; index += 1) {
+    const sequence = 501 + (index < 64 ? index : index - 64);
+    const rollNumber = `${index < 64 ? baseCode : lateralCode}${sequence}`;
+    const fullName = `Student ${rollNumber}`;
+
+    students.push({
+      rollNumber,
+      departmentId: department.id,
+      batchStart: safeBatchStart,
+      section: safeSection,
+      fullName,
+      email: `${rollNumber.toLowerCase()}@aceconnect.dev`,
+      phone: '',
+      lateralEntry: index >= 64 ? 1 : 0,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  return students;
+}
+
+function createDefaultProfile({ rollNumber, section = 'A', departmentId = 'cse', batchStart = 2022, fullName, email, phone }) {
   return {
     imageSrc: 'https://bootdey.com/img/Content/avatar/avatar7.png',
     name: rollNumber,
@@ -55,9 +84,9 @@ function createDefaultProfile({ rollNumber, section = 'A', departmentId = 'cse',
     twitter: '',
     instagram: '',
     facebook: '',
-    fullName: `Student ${rollNumber}`,
-    email: `${rollNumber.toLowerCase()}@aceconnect.dev`,
-    phone: '',
+    fullName: fullName || `Student ${rollNumber}`,
+    email: email || `${rollNumber.toLowerCase()}@aceconnect.dev`,
+    phone: phone || '',
     mobile: '',
     section,
     departmentId,
@@ -88,6 +117,19 @@ function normalizeProfile(rollNumber, input) {
   };
 }
 
+function normalizeStudent(input) {
+  return {
+    rollNumber: input.rollNumber?.trim(),
+    departmentId: input.departmentId?.trim() || 'cse',
+    batchStart: Number(input.batchStart) || 2022,
+    section: input.section?.trim() || 'A',
+    fullName: input.fullName?.trim() || '',
+    email: input.email?.trim() || '',
+    phone: input.phone?.trim() || '',
+    lateralEntry: input.lateralEntry ? 1 : 0,
+  };
+}
+
 function ensureDbConnection() {
   if (db) {
     return db;
@@ -112,6 +154,19 @@ function ensureDbConnection() {
     CREATE TABLE IF NOT EXISTS sections (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS students (
+      roll_number TEXT PRIMARY KEY,
+      department_id TEXT NOT NULL,
+      batch_start INTEGER NOT NULL,
+      section TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      lateral_entry INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (department_id) REFERENCES departments(id)
     );
 
     CREATE TABLE IF NOT EXISTS profiles (
@@ -205,17 +260,31 @@ function mapUser(row) {
   };
 }
 
+function mapStudent(row) {
+  return {
+    rollNumber: row.roll_number,
+    departmentId: row.department_id,
+    batchStart: row.batch_start,
+    section: row.section,
+    fullName: row.full_name,
+    email: row.email,
+    phone: row.phone,
+    lateralEntry: Boolean(row.lateral_entry),
+    createdAt: row.created_at,
+  };
+}
+
 async function ensureDb() {
-  await mkdir(__dirname, { recursive: true });
+  await mkdir(path.dirname(sqlitePath), { recursive: true });
   const database = ensureDbConnection();
   const counts = database.prepare(`
     SELECT
       (SELECT COUNT(*) FROM departments) AS departments_count,
       (SELECT COUNT(*) FROM sections) AS sections_count,
+      (SELECT COUNT(*) FROM students) AS students_count,
       (SELECT COUNT(*) FROM profiles) AS profiles_count,
       (SELECT COUNT(*) FROM users) AS users_count
   `).get();
-
   const rawSeed = await readFile(seedPath, 'utf8');
   const seed = JSON.parse(rawSeed);
   const insertDepartment = database.prepare(`
@@ -225,6 +294,11 @@ async function ensureDb() {
   `);
   const insertSection = database.prepare(`
     INSERT OR REPLACE INTO sections (id, name) VALUES (?, ?)
+  `);
+  const insertStudent = database.prepare(`
+    INSERT OR REPLACE INTO students (
+      roll_number, department_id, batch_start, section, full_name, email, phone, lateral_entry, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertProfile = database.prepare(`
     INSERT OR REPLACE INTO profiles (
@@ -260,6 +334,22 @@ async function ensureDb() {
     if (counts.sections_count === 0) {
       for (const section of seed.sections) {
         insertSection.run(section.id, section.name);
+      }
+    }
+
+    if (counts.students_count === 0 && Array.isArray(seed.students)) {
+      for (const student of seed.students) {
+        insertStudent.run(
+          student.rollNumber,
+          student.departmentId,
+          student.batchStart,
+          student.section,
+          student.fullName,
+          student.email,
+          student.phone,
+          student.lateralEntry ? 1 : 0,
+          student.createdAt || new Date().toISOString(),
+        );
       }
     }
 
@@ -316,13 +406,11 @@ async function ensureDb() {
 
 async function getDepartments() {
   const database = await ensureDb();
-  const rows = database.prepare(`
+  return database.prepare(`
     SELECT id, name, short_name, image, route, description, code_prefix, default_batch_start, default_section
     FROM departments
     ORDER BY name
-  `).all();
-
-  return rows.map(mapDepartment);
+  `).all().map(mapDepartment);
 }
 
 async function getSections() {
@@ -345,7 +433,8 @@ async function getDepartment(departmentId) {
   return row ? mapDepartment(row) : undefined;
 }
 
-async function getRollNumbers(departmentId, batchStart, section = 'A') {
+async function ensureStudentsForCohort(departmentId, batchStart, section = 'A') {
+  const database = await ensureDb();
   const department = await getDepartment(departmentId);
 
   if (!department) {
@@ -353,24 +442,107 @@ async function getRollNumbers(departmentId, batchStart, section = 'A') {
   }
 
   const safeBatchStart = Number(batchStart) || department.defaultBatchStart || 2022;
-  const yearCode = String(safeBatchStart).slice(-2);
-  const baseCode = `${yearCode}${department.codePrefix}`;
-  const lateralCode = `${String(safeBatchStart + 1).slice(-2)}${department.codePrefix}`;
-  const students = [];
+  const safeSection = section || department.defaultSection || 'A';
+  const existing = database.prepare(`
+    SELECT *
+    FROM students
+    WHERE department_id = ? AND batch_start = ? AND section = ?
+    ORDER BY roll_number
+  `).all(departmentId, safeBatchStart, safeSection);
 
-  for (let index = 0; index < 70; index += 1) {
-    const sequence = 501 + (index < 64 ? index : index - 64);
-    const rollNumber = `${index < 64 ? baseCode : lateralCode}${sequence}`;
-
-    students.push({
-      rollNumber,
-      section,
-      departmentId,
-      batchStart: safeBatchStart,
-    });
+  if (existing.length > 0) {
+    return existing.map(mapStudent);
   }
 
-  return students;
+  const generated = buildGeneratedStudentsForCohort(department, safeBatchStart, safeSection);
+  const insertStudent = database.prepare(`
+    INSERT OR REPLACE INTO students (
+      roll_number, department_id, batch_start, section, full_name, email, phone, lateral_entry, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  try {
+    database.exec('BEGIN');
+
+    for (const student of generated) {
+      insertStudent.run(
+        student.rollNumber,
+        student.departmentId,
+        student.batchStart,
+        student.section,
+        student.fullName,
+        student.email,
+        student.phone,
+        student.lateralEntry ? 1 : 0,
+        student.createdAt,
+      );
+    }
+
+    database.exec('COMMIT');
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  }
+
+  return generated;
+}
+
+async function listStudents({ departmentId, batchStart, section, search } = {}) {
+  const database = await ensureDb();
+
+  if (departmentId && batchStart && section) {
+    await ensureStudentsForCohort(departmentId, batchStart, section);
+  }
+
+  const conditions = [];
+  const values = [];
+
+  if (departmentId) {
+    conditions.push('department_id = ?');
+    values.push(departmentId);
+  }
+
+  if (batchStart) {
+    conditions.push('batch_start = ?');
+    values.push(Number(batchStart));
+  }
+
+  if (section) {
+    conditions.push('section = ?');
+    values.push(section);
+  }
+
+  if (search) {
+    conditions.push('(roll_number LIKE ? OR full_name LIKE ? OR email LIKE ?)');
+    values.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  return database.prepare(`
+    SELECT *
+    FROM students
+    ${whereClause}
+    ORDER BY roll_number
+  `).all(...values).map(mapStudent);
+}
+
+async function getStudent(rollNumber) {
+  const database = await ensureDb();
+  const row = database.prepare(`
+    SELECT *
+    FROM students
+    WHERE roll_number = ?
+  `).get(rollNumber);
+
+  return row ? mapStudent(row) : null;
+}
+
+async function getRollNumbers(departmentId, batchStart, section = 'A') {
+  return listStudents({
+    departmentId,
+    batchStart,
+    section,
+  });
 }
 
 async function listProfiles({ departmentId, batchStart, section } = {}) {
@@ -394,48 +566,51 @@ async function listProfiles({ departmentId, batchStart, section } = {}) {
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const rows = database.prepare(`
+  return database.prepare(`
     SELECT *
     FROM profiles
     ${whereClause}
     ORDER BY roll_number
-  `).all(...values);
-
-  return rows.map(mapProfile);
+  `).all(...values).map(mapProfile);
 }
 
 async function getProfile(rollNumber, metadata = {}) {
   const database = await ensureDb();
-  const row = database.prepare(`
+  const profileRow = database.prepare(`
     SELECT *
     FROM profiles
     WHERE roll_number = ?
   `).get(rollNumber);
 
-  if (row) {
-    return mapProfile(row);
+  if (profileRow) {
+    return mapProfile(profileRow);
   }
+
+  const student = await getStudent(rollNumber);
 
   return {
     rollNumber,
     ...createDefaultProfile({
       rollNumber,
-      section: metadata.section,
-      departmentId: metadata.departmentId,
-      batchStart: metadata.batchStart,
+      section: student?.section || metadata.section,
+      departmentId: student?.departmentId || metadata.departmentId,
+      batchStart: student?.batchStart || metadata.batchStart,
+      fullName: student?.fullName,
+      email: student?.email,
+      phone: student?.phone,
     }),
   };
 }
 
 async function saveProfile(rollNumber, input) {
   const database = await ensureDb();
-  const existing = database.prepare(`
+  const existingProfile = database.prepare(`
     SELECT *
     FROM profiles
     WHERE roll_number = ?
   `).get(rollNumber);
   const merged = normalizeProfile(rollNumber, {
-    ...(existing ? mapProfile(existing) : {}),
+    ...(existingProfile ? mapProfile(existingProfile) : {}),
     ...input,
   });
 
@@ -465,16 +640,158 @@ async function saveProfile(rollNumber, input) {
     merged.bio,
   );
 
+  const existingStudent = await getStudent(rollNumber);
+
+  if (existingStudent) {
+    await updateStudent(rollNumber, {
+      departmentId: merged.departmentId,
+      batchStart: merged.batchStart,
+      section: merged.section,
+      fullName: merged.fullName,
+      email: merged.email,
+      phone: merged.phone,
+      lateralEntry: existingStudent.lateralEntry,
+    });
+  } else {
+    await createStudent({
+      rollNumber,
+      departmentId: merged.departmentId,
+      batchStart: merged.batchStart,
+      section: merged.section,
+      fullName: merged.fullName,
+      email: merged.email,
+      phone: merged.phone,
+    });
+  }
+
   return {
     rollNumber,
     ...merged,
   };
 }
 
+async function createStudent(input) {
+  const database = await ensureDb();
+  const normalized = normalizeStudent(input);
+
+  if (!normalized.rollNumber || !normalized.fullName) {
+    throw new Error('INVALID_STUDENT_INPUT');
+  }
+
+  const existing = await getStudent(normalized.rollNumber);
+
+  if (existing) {
+    throw new Error('STUDENT_EXISTS');
+  }
+
+  const createdAt = new Date().toISOString();
+
+  database.prepare(`
+    INSERT INTO students (
+      roll_number, department_id, batch_start, section, full_name, email, phone, lateral_entry, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    normalized.rollNumber,
+    normalized.departmentId,
+    normalized.batchStart,
+    normalized.section,
+    normalized.fullName,
+    normalized.email,
+    normalized.phone,
+    normalized.lateralEntry,
+    createdAt,
+  );
+
+  return {
+    rollNumber: normalized.rollNumber,
+    departmentId: normalized.departmentId,
+    batchStart: normalized.batchStart,
+    section: normalized.section,
+    fullName: normalized.fullName,
+    email: normalized.email,
+    phone: normalized.phone,
+    lateralEntry: Boolean(normalized.lateralEntry),
+    createdAt,
+  };
+}
+
+async function updateStudent(rollNumber, updates) {
+  const database = await ensureDb();
+  const existing = await getStudent(rollNumber);
+
+  if (!existing) {
+    throw new Error('STUDENT_NOT_FOUND');
+  }
+
+  const merged = {
+    ...existing,
+    ...updates,
+  };
+  const normalized = normalizeStudent({
+    ...merged,
+    rollNumber,
+  });
+
+  if (!normalized.fullName) {
+    throw new Error('INVALID_STUDENT_INPUT');
+  }
+
+  database.prepare(`
+    UPDATE students
+    SET department_id = ?, batch_start = ?, section = ?, full_name = ?, email = ?, phone = ?, lateral_entry = ?
+    WHERE roll_number = ?
+  `).run(
+    normalized.departmentId,
+    normalized.batchStart,
+    normalized.section,
+    normalized.fullName,
+    normalized.email,
+    normalized.phone,
+    normalized.lateralEntry,
+    rollNumber,
+  );
+
+  const profileRow = database.prepare(`
+    SELECT *
+    FROM profiles
+    WHERE roll_number = ?
+  `).get(rollNumber);
+
+  if (profileRow) {
+    database.prepare(`
+      UPDATE profiles
+      SET full_name = ?, email = ?, phone = ?, section = ?, department_id = ?, batch_start = ?
+      WHERE roll_number = ?
+    `).run(
+      normalized.fullName,
+      normalized.email,
+      normalized.phone,
+      normalized.section,
+      normalized.departmentId,
+      normalized.batchStart,
+      rollNumber,
+    );
+  }
+
+  return getStudent(rollNumber);
+}
+
+async function deleteStudent(rollNumber) {
+  const database = await ensureDb();
+  const existing = await getStudent(rollNumber);
+
+  if (!existing) {
+    throw new Error('STUDENT_NOT_FOUND');
+  }
+
+  database.prepare(`DELETE FROM profiles WHERE roll_number = ?`).run(rollNumber);
+  database.prepare(`DELETE FROM students WHERE roll_number = ?`).run(rollNumber);
+}
+
 async function seedGeneratedProfiles({ departmentId = 'cse', batchStart = 2022, section = 'A' } = {}) {
   const database = await ensureDb();
-  const students = await getRollNumbers(departmentId, batchStart, section);
-  const existingRollNumbers = new Set(
+  const students = await ensureStudentsForCohort(departmentId, batchStart, section);
+  const existingProfiles = new Set(
     database.prepare(`
       SELECT roll_number
       FROM profiles
@@ -493,7 +810,7 @@ async function seedGeneratedProfiles({ departmentId = 'cse', batchStart = 2022, 
     database.exec('BEGIN');
 
     for (const student of students) {
-      if (existingRollNumbers.has(student.rollNumber)) {
+      if (existingProfiles.has(student.rollNumber)) {
         continue;
       }
 
@@ -520,6 +837,7 @@ async function seedGeneratedProfiles({ departmentId = 'cse', batchStart = 2022, 
       );
       created += 1;
     }
+
     database.exec('COMMIT');
   } catch (error) {
     database.exec('ROLLBACK');
@@ -659,13 +977,11 @@ async function changeUserPassword(userId, newPassword) {
 
 async function listUsers() {
   const database = await ensureDb();
-  const rows = database.prepare(`
+  return database.prepare(`
     SELECT id, username, full_name, role, created_at
     FROM users
     ORDER BY created_at ASC
-  `).all();
-
-  return rows.map(mapUser);
+  `).all().map(mapUser);
 }
 
 async function createUser({ username, password, fullName, role }) {
@@ -776,13 +1092,25 @@ async function deleteUser(userId, actingUserId) {
   database.prepare(`DELETE FROM users WHERE id = ?`).run(userId);
 }
 
+function closeDatabase() {
+  if (db && typeof db.close === 'function') {
+    db.close();
+  }
+
+  db = undefined;
+}
+
 export {
   authenticateUser,
   changeUserPassword,
+  closeDatabase,
   createSession,
+  createStudent,
   createUser,
   deleteSession,
+  deleteStudent,
   deleteUser,
+  ensureStudentsForCohort,
   getAuthConfig,
   getBatches,
   getDepartment,
@@ -792,9 +1120,12 @@ export {
   getSessionUser,
   getSections,
   getStorageInfo,
-  listUsers,
+  getStudent,
   listProfiles,
+  listStudents,
+  listUsers,
   saveProfile,
   seedGeneratedProfiles,
+  updateStudent,
   updateUser,
 };

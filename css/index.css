@@ -35,6 +35,47 @@
   margin: 0 auto;
 }
 
+.quick-links-shell {
+  max-width: 1100px;
+  margin: 2rem auto 0;
+  padding: 0 24px;
+}
+
+.quick-links-header h2 {
+  font-family: "Merriweather", sans-serif;
+  margin-bottom: 0.35rem;
+}
+
+.quick-links-header p {
+  color: #4f5d75;
+  margin-bottom: 1rem;
+}
+
+.quick-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.quick-link-card {
+  background: linear-gradient(145deg, #fff, #f6faff);
+  border: 1px solid #dfe6f2;
+  border-radius: 18px;
+  box-shadow: 0 10px 28px rgba(15, 45, 84, 0.08);
+  color: #14213d;
+  display: grid;
+  gap: 0.5rem;
+  padding: 20px;
+}
+
+.quick-link-card strong {
+  font-size: 1rem;
+}
+
+.quick-link-card span {
+  color: #4f5d75;
+}
+
 .grid-item {
   padding: 20px;
   text-align: center;

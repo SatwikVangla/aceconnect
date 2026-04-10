@@ -14,11 +14,12 @@ Main responsibilities:
 
 - call `/api/departments`
 - render department cards
+- render homepage quick links to profile and admin flows
 - use a fallback card if the backend request fails
 
 ### [`package.json`](/home/satwik/aceconnect/package.json)
 
-Defines the project as an ES module package and exposes the `npm start` command.
+Defines the project as an ES module package and exposes the `npm start` and `npm test` commands.
 
 ### [`README.md`](/home/satwik/aceconnect/README.md)
 
@@ -124,6 +125,10 @@ Main responsibilities:
 - create users
 - update users
 - delete users
+- list students
+- create students
+- update students
+- delete students
 - expose logout and password-change actions for the current admin
 
 ### [`cse/admin.css`](/home/satwik/aceconnect/cse/admin.css)
@@ -155,12 +160,13 @@ Main responsibilities:
 - create the database and schema
 - seed the database from JSON on first run
 - fetch departments and sections
-- generate batches and roll numbers
+- generate batches and cohort students
 - hash and verify user passwords
 - create and validate sessions
 - create, list, update, and delete users
+- create, list, update, and delete students
 - read profiles
-- save profiles
+- save profiles while syncing student summary fields
 - seed missing generated profiles
 
 ### [`backend/seed-data.json`](/home/satwik/aceconnect/backend/seed-data.json)
@@ -170,6 +176,35 @@ Bootstrap data used only when a new SQLite database is created.
 ### `backend/aceconnect.sqlite`
 
 Generated runtime database file. This file is ignored by git and not committed.
+
+## Testing
+
+### [`test/app.test.js`](/home/satwik/aceconnect/test/app.test.js)
+
+Node built-in test runner coverage for the main backend flows.
+
+Main responsibilities:
+
+- boot the server against an isolated temporary SQLite database
+- verify health and storage metadata
+- verify login and session-backed auth
+- verify user management
+- verify student CRUD
+- verify profile updates remain synchronized with student data
+
+## Deployment
+
+### [`Dockerfile`](/home/satwik/aceconnect/Dockerfile)
+
+Container build for the production server.
+
+### [`.dockerignore`](/home/satwik/aceconnect/.dockerignore)
+
+Excludes local runtime artifacts from Docker build context.
+
+### [`render.yaml`](/home/satwik/aceconnect/render.yaml)
+
+Render blueprint for deploying the app as a web service.
 
 ## Images
 

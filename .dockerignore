@@ -1,0 +1,7 @@
+node_modules
+.git
+.codex
+backend/aceconnect.sqlite
+backend/aceconnect.sqlite-shm
+backend/aceconnect.sqlite-wal
+test

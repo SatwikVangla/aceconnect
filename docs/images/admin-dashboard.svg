@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+  <title id="title">Ace Connect admin dashboard preview</title>
+  <desc id="desc">Illustrated preview of the admin dashboard with user management and student cohort management.</desc>
+  <rect width="1440" height="960" fill="#f8fafc" />
+  <rect width="1440" height="74" fill="#0d6efd" />
+  <text x="118" y="46" fill="#ffffff" font-size="28" font-family="Georgia, serif" font-weight="700">ACECONNECT</text>
+  <text x="720" y="138" text-anchor="middle" fill="#0f172a" font-size="48" font-family="Georgia, serif" font-weight="700">Admin Dashboard</text>
+  <rect x="100" y="180" width="1240" height="120" rx="26" fill="#ffffff" stroke="#dbe3ef" />
+  <text x="150" y="235" fill="#0f172a" font-size="32" font-family="Georgia, serif" font-weight="700">Welcome, Ace Connect Admin</text>
+  <text x="150" y="275" fill="#64748b" font-size="24" font-family="Arial, sans-serif">Manage users, students, and cohort-linked profiles.</text>
+  <rect x="100" y="330" width="285" height="120" rx="24" fill="#ffffff" stroke="#dbe3ef" />
+  <rect x="405" y="330" width="285" height="120" rx="24" fill="#ffffff" stroke="#dbe3ef" />
+  <rect x="710" y="330" width="285" height="120" rx="24" fill="#ffffff" stroke="#dbe3ef" />
+  <rect x="1015" y="330" width="325" height="120" rx="24" fill="#ffffff" stroke="#dbe3ef" />
+  <text x="140" y="380" fill="#64748b" font-size="20" font-family="Arial, sans-serif">Total Users</text>
+  <text x="140" y="425" fill="#0f172a" font-size="42" font-family="Arial, sans-serif" font-weight="700">4</text>
+  <text x="445" y="380" fill="#64748b" font-size="20" font-family="Arial, sans-serif">Admins</text>
+  <text x="445" y="425" fill="#0f172a" font-size="42" font-family="Arial, sans-serif" font-weight="700">1</text>
+  <text x="750" y="380" fill="#64748b" font-size="20" font-family="Arial, sans-serif">Editors</text>
+  <text x="750" y="425" fill="#0f172a" font-size="42" font-family="Arial, sans-serif" font-weight="700">3</text>
+  <text x="1055" y="380" fill="#64748b" font-size="20" font-family="Arial, sans-serif">Students In Seeded Cohort</text>
+  <text x="1055" y="425" fill="#0f172a" font-size="42" font-family="Arial, sans-serif" font-weight="700">70</text>
+  <rect x="100" y="490" width="1240" height="180" rx="26" fill="#ffffff" stroke="#dbe3ef" />
+  <text x="150" y="545" fill="#0f172a" font-size="30" font-family="Georgia, serif" font-weight="700">Manage Users</text>
+  <rect x="150" y="575" width="1120" height="56" rx="18" fill="#f8fafc" stroke="#e2e8f0" />
+  <text x="185" y="611" fill="#334155" font-size="20" font-family="Arial, sans-serif">admin</text>
+  <text x="430" y="611" fill="#334155" font-size="20" font-family="Arial, sans-serif">Ace Connect Admin</text>
+  <text x="760" y="611" fill="#334155" font-size="20" font-family="Arial, sans-serif">admin</text>
+  <rect x="940" y="589" width="118" height="28" rx="14" fill="#eaf2ff" />
+  <rect x="1080" y="589" width="118" height="28" rx="14" fill="#fee2e2" />
+  <rect x="100" y="710" width="1240" height="190" rx="26" fill="#ffffff" stroke="#dbe3ef" />
+  <text x="150" y="765" fill="#0f172a" font-size="30" font-family="Georgia, serif" font-weight="700">Student Cohort Management</text>
+  <rect x="150" y="795" width="1120" height="58" rx="18" fill="#f8fafc" stroke="#e2e8f0" />
+  <text x="185" y="832" fill="#334155" font-size="20" font-family="Arial, sans-serif">22AG1A0501</text>
+  <text x="390" y="832" fill="#334155" font-size="20" font-family="Arial, sans-serif">Student 22AG1A0501</text>
+  <text x="720" y="832" fill="#334155" font-size="20" font-family="Arial, sans-serif">22ag1a0501@aceconnect.dev</text>
+  <rect x="1060" y="809" width="90" height="28" rx="14" fill="#eaf2ff" />
+  <rect x="1170" y="809" width="90" height="28" rx="14" fill="#fee2e2" />
+</svg>

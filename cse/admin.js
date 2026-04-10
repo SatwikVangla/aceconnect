@@ -2,116 +2,123 @@ import { spinnerRender } from '../utilities/spinner.js';
 
 const adminContainerEl = document.querySelector('.admin-container');
 
-async function fetchAuthConfig() {
-  const response = await fetch('/api/auth/config');
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, options);
 
   if (!response.ok) {
-    throw new Error(`Failed to load auth config: ${response.status}`);
+    let message = `Request failed: ${response.status}`;
+
+    try {
+      const payload = await response.json();
+      if (payload?.error) {
+        message = payload.error;
+      }
+    } catch {
+      // Ignore invalid JSON error payloads.
+    }
+
+    throw new Error(message);
+  }
+
+  if (response.status === 204) {
+    return null;
   }
 
   return response.json();
+}
+
+async function fetchAuthConfig() {
+  return requestJson('/api/auth/config');
 }
 
 async function fetchCurrentUser() {
-  const response = await fetch('/api/auth/me');
-
-  if (!response.ok) {
-    throw new Error(`Failed to load current user: ${response.status}`);
-  }
-
-  return response.json();
+  return requestJson('/api/auth/me');
 }
 
 async function login(username, password) {
-  const response = await fetch('/api/auth/login', {
+  return requestJson('/api/auth/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ username, password }),
   });
-
-  if (!response.ok) {
-    throw new Error(`Login failed: ${response.status}`);
-  }
-
-  return response.json();
 }
 
 async function logout() {
-  const response = await fetch('/api/auth/logout', {
+  await requestJson('/api/auth/logout', {
     method: 'POST',
   });
-
-  if (!response.ok) {
-    throw new Error(`Logout failed: ${response.status}`);
-  }
 }
 
 async function changePassword(newPassword) {
-  const response = await fetch('/api/auth/change-password', {
+  await requestJson('/api/auth/change-password', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ newPassword }),
   });
-
-  if (!response.ok) {
-    throw new Error(`Password change failed: ${response.status}`);
-  }
 }
 
 async function fetchUsers() {
-  const response = await fetch('/api/users');
-
-  if (!response.ok) {
-    throw new Error(`Failed to load users: ${response.status}`);
-  }
-
-  return response.json();
+  return requestJson('/api/users');
 }
 
 async function createUser(payload) {
-  const response = await fetch('/api/users', {
+  return requestJson('/api/users', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    throw new Error(`Create user failed: ${response.status}`);
-  }
-
-  return response.json();
 }
 
 async function updateUser(userId, payload) {
-  const response = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
+  return requestJson(`/api/users/${encodeURIComponent(userId)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    throw new Error(`Update user failed: ${response.status}`);
-  }
-
-  return response.json();
 }
 
 async function deleteUser(userId) {
-  const response = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
+  await requestJson(`/api/users/${encodeURIComponent(userId)}`, {
     method: 'DELETE',
   });
+}
 
-  if (!response.ok) {
-    throw new Error(`Delete user failed: ${response.status}`);
-  }
+async function fetchStudents() {
+  return requestJson('/api/students?departmentId=cse&batchStart=2022&section=A');
+}
+
+async function createStudent(payload) {
+  return requestJson('/api/students', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function updateStudent(rollNumber, payload) {
+  return requestJson(`/api/students/${encodeURIComponent(rollNumber)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function deleteStudent(rollNumber) {
+  await requestJson(`/api/students/${encodeURIComponent(rollNumber)}`, {
+    method: 'DELETE',
+  });
 }
 
 function renderLogin() {
@@ -155,7 +162,7 @@ function renderLogin() {
       await init();
     } catch (error) {
       console.error(error);
-      statusEl.textContent = 'Invalid username or password.';
+      statusEl.textContent = error instanceof Error ? error.message : 'Invalid username or password.';
     }
   });
 }
@@ -180,7 +187,7 @@ function renderForbidden(user) {
   });
 }
 
-function renderDashboard(user, users) {
+function renderDashboard(user, users, students) {
   const adminCount = users.filter((item) => item.role === 'admin').length;
   const editorCount = users.filter((item) => item.role === 'editor').length;
 
@@ -190,9 +197,10 @@ function renderDashboard(user, users) {
         <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
           <div>
             <h2 class="admin-section-title h4 mb-1">Welcome, ${user.fullName}</h2>
-            <p class="text-muted mb-0">Use this dashboard to manage user accounts and admin access.</p>
+            <p class="text-muted mb-0">Use this dashboard to manage users, students, and profile-ready cohorts.</p>
           </div>
           <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-outline-primary" href="../index.html">Home</a>
             <a class="btn btn-outline-primary" href="profile.html">Profile Page</a>
             <button type="button" class="btn btn-outline-secondary change-password">Change Password</button>
             <button type="button" class="btn btn-outline-secondary logout-user">Logout</button>
@@ -213,6 +221,10 @@ function renderDashboard(user, users) {
       <article class="stat-card">
         <div class="stat-label">Editors</div>
         <div class="stat-value">${editorCount}</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Students In Seeded Cohort</div>
+        <div class="stat-value">${students.length}</div>
       </article>
     </section>
 
@@ -249,7 +261,7 @@ function renderDashboard(user, users) {
       </div>
     </section>
 
-    <section class="dashboard-card card">
+    <section class="dashboard-card card mb-4">
       <div class="card-body p-4">
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
           <h3 class="admin-section-title h5 mb-0">Manage Users</h3>
@@ -291,10 +303,124 @@ function renderDashboard(user, users) {
         </div>
       </div>
     </section>
+
+    <section class="dashboard-card card mb-4">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <div>
+            <h3 class="admin-section-title h5 mb-1">Student Cohort Management</h3>
+            <p class="text-muted mb-0">Manage persisted students for the default seeded cohort. Profile updates stay in sync with these records.</p>
+          </div>
+          <a class="btn btn-outline-primary" href="rollnumber.html?department=cse&batchStart=2022&batchEnd=2026&section=A">Open Roll Numbers</a>
+        </div>
+
+        <form class="student-create-form row g-3 mb-4">
+          <div class="col-md-3">
+            <label class="form-label" for="studentRollNumber">Roll Number</label>
+            <input class="form-control" id="studentRollNumber" name="rollNumber" placeholder="22AG1A0599">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="studentFullName">Full Name</label>
+            <input class="form-control" id="studentFullName" name="fullName">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="studentEmail">Email</label>
+            <input class="form-control" id="studentEmail" name="email">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="studentPhone">Phone</label>
+            <input class="form-control" id="studentPhone" name="phone">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="studentDepartmentId">Department</label>
+            <input class="form-control" id="studentDepartmentId" name="departmentId" value="cse">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="studentBatchStart">Batch Start</label>
+            <input class="form-control" id="studentBatchStart" name="batchStart" type="number" value="2022">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" for="studentSection">Section</label>
+            <input class="form-control" id="studentSection" name="section" value="A">
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check">
+              <input class="form-check-input" id="studentLateralEntry" name="lateralEntry" type="checkbox">
+              <label class="form-check-label" for="studentLateralEntry">Lateral Entry</label>
+            </div>
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Create Student</button>
+          </div>
+          <div class="col-12">
+            <span class="status-line student-create-status text-muted"></span>
+          </div>
+        </form>
+
+        <div class="student-list">
+          ${students
+            .map(
+              (student) => `
+                <form class="student-row row g-2 align-items-end" data-roll-number="${student.rollNumber}">
+                  <div class="col-md-2">
+                    <label class="form-label">Roll Number</label>
+                    <input class="form-control" value="${student.rollNumber}" disabled>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Full Name</label>
+                    <input class="form-control" name="fullName" value="${student.fullName}">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Email</label>
+                    <input class="form-control" name="email" value="${student.email}">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Phone</label>
+                    <input class="form-control" name="phone" value="${student.phone}">
+                  </div>
+                  <div class="col-md-1">
+                    <label class="form-label">Dept</label>
+                    <input class="form-control" name="departmentId" value="${student.departmentId}">
+                  </div>
+                  <div class="col-md-1">
+                    <label class="form-label">Batch</label>
+                    <input class="form-control" name="batchStart" type="number" value="${student.batchStart}">
+                  </div>
+                  <div class="col-md-1">
+                    <label class="form-label">Section</label>
+                    <input class="form-control" name="section" value="${student.section}">
+                  </div>
+                  <div class="col-md-1">
+                    <div class="form-check mt-4">
+                      <input class="form-check-input" name="lateralEntry" type="checkbox" ${student.lateralEntry ? 'checked' : ''}>
+                      <label class="form-check-label">LE</label>
+                    </div>
+                  </div>
+                  <div class="col-md-2">
+                    <a class="btn btn-outline-primary w-100" href="profile.html?rollNumber=${encodeURIComponent(student.rollNumber)}&departmentId=${encodeURIComponent(student.departmentId)}&batchStart=${student.batchStart}&section=${encodeURIComponent(student.section)}">Profile</a>
+                  </div>
+                  <div class="col-md-1">
+                    <button type="submit" class="btn btn-outline-secondary w-100">Save</button>
+                  </div>
+                  <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-danger w-100 delete-student">Delete</button>
+                  </div>
+                  <div class="col-12">
+                    <span class="status-line student-row-status text-muted small"></span>
+                  </div>
+                </form>
+              `,
+            )
+            .join('')}
+        </div>
+      </div>
+    </section>
   `;
 
-  const createFormEl = adminContainerEl.querySelector('.user-create-form');
-  const createStatusEl = adminContainerEl.querySelector('.user-create-status');
+  const createUserFormEl = adminContainerEl.querySelector('.user-create-form');
+  const createUserStatusEl = adminContainerEl.querySelector('.user-create-status');
+  const createStudentFormEl = adminContainerEl.querySelector('.student-create-form');
+  const createStudentStatusEl = adminContainerEl.querySelector('.student-create-status');
 
   adminContainerEl.querySelector('.logout-user').addEventListener('click', async () => {
     await logout();
@@ -314,15 +440,15 @@ function renderDashboard(user, users) {
       })
       .catch((error) => {
         console.error(error);
-        window.alert('Password update failed.');
+        window.alert(error instanceof Error ? error.message : 'Password update failed.');
       });
   });
 
-  createFormEl.addEventListener('submit', async (event) => {
+  createUserFormEl.addEventListener('submit', async (event) => {
     event.preventDefault();
-    createStatusEl.textContent = 'Creating user...';
+    createUserStatusEl.textContent = 'Creating user...';
 
-    const formData = new FormData(createFormEl);
+    const formData = new FormData(createUserFormEl);
 
     try {
       await createUser({
@@ -334,7 +460,31 @@ function renderDashboard(user, users) {
       await init();
     } catch (error) {
       console.error(error);
-      createStatusEl.textContent = 'Create user failed.';
+      createUserStatusEl.textContent = error instanceof Error ? error.message : 'Create user failed.';
+    }
+  });
+
+  createStudentFormEl.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    createStudentStatusEl.textContent = 'Creating student...';
+
+    const formData = new FormData(createStudentFormEl);
+
+    try {
+      await createStudent({
+        rollNumber: String(formData.get('rollNumber') ?? ''),
+        fullName: String(formData.get('fullName') ?? ''),
+        email: String(formData.get('email') ?? ''),
+        phone: String(formData.get('phone') ?? ''),
+        departmentId: String(formData.get('departmentId') ?? 'cse'),
+        batchStart: Number(formData.get('batchStart') ?? 2022),
+        section: String(formData.get('section') ?? 'A'),
+        lateralEntry: formData.get('lateralEntry') === 'on',
+      });
+      await init();
+    } catch (error) {
+      console.error(error);
+      createStudentStatusEl.textContent = error instanceof Error ? error.message : 'Create student failed.';
     }
   });
 
@@ -357,7 +507,7 @@ function renderDashboard(user, users) {
         await init();
       } catch (error) {
         console.error(error);
-        statusEl.textContent = 'Update failed.';
+        statusEl.textContent = error instanceof Error ? error.message : 'Update failed.';
       }
     });
 
@@ -369,7 +519,48 @@ function renderDashboard(user, users) {
         await init();
       } catch (error) {
         console.error(error);
-        statusEl.textContent = 'Delete failed.';
+        statusEl.textContent = error instanceof Error ? error.message : 'Delete failed.';
+      }
+    });
+  }
+
+  for (const rowEl of adminContainerEl.querySelectorAll('.student-row')) {
+    const statusEl = rowEl.querySelector('.student-row-status');
+    const deleteButtonEl = rowEl.querySelector('.delete-student');
+    const rollNumber = rowEl.dataset.rollNumber;
+
+    rowEl.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      statusEl.textContent = 'Saving student...';
+
+      const formData = new FormData(rowEl);
+
+      try {
+        await updateStudent(rollNumber, {
+          departmentId: String(formData.get('departmentId') ?? 'cse'),
+          batchStart: Number(formData.get('batchStart') ?? 2022),
+          section: String(formData.get('section') ?? 'A'),
+          fullName: String(formData.get('fullName') ?? ''),
+          email: String(formData.get('email') ?? ''),
+          phone: String(formData.get('phone') ?? ''),
+          lateralEntry: formData.get('lateralEntry') === 'on',
+        });
+        await init();
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = error instanceof Error ? error.message : 'Student update failed.';
+      }
+    });
+
+    deleteButtonEl.addEventListener('click', async () => {
+      statusEl.textContent = 'Deleting student...';
+
+      try {
+        await deleteStudent(rollNumber);
+        await init();
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = error instanceof Error ? error.message : 'Student delete failed.';
       }
     });
   }
@@ -394,8 +585,11 @@ async function init() {
       return;
     }
 
-    const users = await fetchUsers();
-    renderDashboard(session.user, users);
+    const [users, students] = await Promise.all([
+      fetchUsers(),
+      fetchStudents(),
+    ]);
+    renderDashboard(session.user, users, students);
   } catch (error) {
     console.error(error);
     adminContainerEl.innerHTML = '<p class="text-center">Unable to load the admin dashboard right now.</p>';

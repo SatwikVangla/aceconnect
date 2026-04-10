@@ -26,6 +26,41 @@
       "name": "Section C"
     }
   ],
+  "students": [
+    {
+      "rollNumber": "22AG1A0501",
+      "departmentId": "cse",
+      "batchStart": 2022,
+      "section": "A",
+      "fullName": "Student 22AG1A0501",
+      "email": "22ag1a0501@aceconnect.dev",
+      "phone": "(239) 816-9029",
+      "lateralEntry": false,
+      "createdAt": "2026-04-10T00:00:00.000Z"
+    },
+    {
+      "rollNumber": "22AG1A0502",
+      "departmentId": "cse",
+      "batchStart": 2022,
+      "section": "A",
+      "fullName": "Satwik Test",
+      "email": "satwik.test@aceconnect.dev",
+      "phone": "",
+      "lateralEntry": false,
+      "createdAt": "2026-04-10T00:00:00.000Z"
+    },
+    {
+      "rollNumber": "22AG1A0503",
+      "departmentId": "cse",
+      "batchStart": 2022,
+      "section": "A",
+      "fullName": "Authorized Update",
+      "email": "authorized@aceconnect.dev",
+      "phone": "",
+      "lateralEntry": false,
+      "createdAt": "2026-04-10T00:00:00.000Z"
+    }
+  ],
   "profiles": {
     "22AG1A0501": {
       "imageSrc": "https://bootdey.com/img/Content/avatar/avatar7.png",

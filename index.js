@@ -23,7 +23,37 @@ async function fetchDepartments() {
   return response.json();
 }
 
-function renderPage(departments) {
+async function fetchCurrentUser() {
+  const response = await fetch('/api/auth/me');
+
+  if (!response.ok) {
+    throw new Error(`Failed to load current user: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function renderPage(departments, session) {
+  const quickLinks = [
+    {
+      href: './cse/cse.html?department=cse',
+      label: 'Browse CSE Cohorts',
+      detail: 'Start the student browsing flow from the homepage.',
+    },
+    {
+      href: './cse/profile.html?rollNumber=22AG1A0501&departmentId=cse&batchStart=2022&section=A',
+      label: 'Open Sample Profile',
+      detail: 'Jump directly to the seeded profile and editor screen.',
+    },
+    {
+      href: './cse/admin.html',
+      label: 'Open Admin Dashboard',
+      detail: session?.user?.role === 'admin'
+        ? `Signed in as ${session.user.fullName}. Open student and user management.`
+        : 'Go straight to login, user management, and student CRUD.',
+    },
+  ];
+
   bodyEl.innerHTML = `
     <nav class="navbar bg-primary">
       <div class="container">
@@ -37,7 +67,28 @@ function renderPage(departments) {
     <main class="page-shell">
       <section class="heading">
         <h1>Departments</h1>
-        <p class="subheading">Frontend repaired and connected to a backend API.</p>
+        <p class="subheading">Frontend repaired and connected to a backend API with sessions, admin tools, and student CRUD.</p>
+      </section>
+
+      <section class="quick-links-shell">
+        <div class="quick-links-header">
+          <div>
+            <h2>Quick Access</h2>
+            <p>${session?.user ? `Signed in as ${session.user.fullName} (${session.user.role}).` : 'Use these shortcuts to reach the main app flows.'}</p>
+          </div>
+        </div>
+        <div class="quick-links-grid">
+          ${quickLinks
+            .map(
+              (link) => `
+                <a class="quick-link-card no-decoration" href="${link.href}">
+                  <strong>${link.label}</strong>
+                  <span>${link.detail}</span>
+                </a>
+              `,
+            )
+            .join('')}
+        </div>
       </section>
 
       <section class="department-container">
@@ -66,11 +117,14 @@ async function init() {
   spinnerRender(bodyEl);
 
   try {
-    const departments = await fetchDepartments();
-    renderPage(departments);
+    const [departments, session] = await Promise.all([
+      fetchDepartments(),
+      fetchCurrentUser().catch(() => ({ user: null })),
+    ]);
+    renderPage(departments, session);
   } catch (error) {
     console.error(error);
-    renderPage(fallbackDepartments);
+    renderPage(fallbackDepartments, { user: null });
   }
 }
 

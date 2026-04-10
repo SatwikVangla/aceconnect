@@ -104,6 +104,58 @@ Request body:
 
 Requires an authenticated `admin` session.
 
+## Students
+
+### `GET /api/students`
+
+Requires an authenticated `admin` session.
+
+Optional query params:
+
+- `departmentId`
+- `batchStart`
+- `section`
+- `search`
+
+Returns persisted students. When `departmentId`, `batchStart`, and `section` are all supplied, the backend auto-generates the cohort in SQLite if it does not exist yet.
+
+### `GET /api/students/:rollNumber`
+
+Requires an authenticated `admin` session.
+
+Returns a single persisted student record.
+
+### `POST /api/students`
+
+Requires an authenticated `admin` session.
+
+Request body:
+
+```json
+{
+  "rollNumber": "22AG1A0599",
+  "departmentId": "cse",
+  "batchStart": 2022,
+  "section": "A",
+  "fullName": "New Student",
+  "email": "new.student@aceconnect.dev",
+  "phone": "9999999999",
+  "lateralEntry": false
+}
+```
+
+### `PUT /api/students/:rollNumber`
+
+Requires an authenticated `admin` session.
+
+Accepts the same fields as student creation except the roll number comes from the URL.
+
+### `DELETE /api/students/:rollNumber`
+
+Requires an authenticated `admin` session.
+
+Deletes the student and any matching profile row.
+
 ## Departments
 
 ### `GET /api/departments`
@@ -189,4 +241,4 @@ Optional query params:
 - `batchStart`
 - `section`
 
-Creates missing default profiles for the selected cohort.
+Creates missing default profiles for the selected cohort. Cohort seeding uses the `students` table as its source.
