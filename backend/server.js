@@ -4,12 +4,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  departments,
   getBatches,
   getDepartment,
+  getDepartments,
   getProfile,
   getRollNumbers,
-  sections,
+  getSections,
+  listProfiles,
+  saveProfile,
+  seedGeneratedProfiles,
 } from './data.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,8 +36,34 @@ function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
   });
   response.end(JSON.stringify(payload));
+}
+
+function sendNoContent(response) {
+  response.writeHead(204, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
+  });
+  response.end();
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
+
+  if (chunks.length === 0) {
+    return {};
+  }
+
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return JSON.parse(raw);
 }
 
 async function serveStatic(response, pathname) {
@@ -68,12 +97,18 @@ const server = createServer(async (request, response) => {
   const requestUrl = new URL(request.url, `http://${request.headers.host}`);
   const { pathname, searchParams } = requestUrl;
 
+  if (request.method === 'OPTIONS') {
+    sendNoContent(response);
+    return;
+  }
+
   if (pathname === '/api/health') {
     sendJson(response, 200, { ok: true });
     return;
   }
 
   if (pathname === '/api/departments') {
+    const departments = await getDepartments();
     sendJson(response, 200, departments);
     return;
   }
@@ -81,7 +116,7 @@ const server = createServer(async (request, response) => {
   const batchMatch = pathname.match(/^\/api\/departments\/([^/]+)\/batches$/);
 
   if (batchMatch) {
-    const department = getDepartment(batchMatch[1]);
+    const department = await getDepartment(batchMatch[1]);
 
     if (!department) {
       sendJson(response, 404, { error: 'Department not found' });
@@ -98,7 +133,7 @@ const server = createServer(async (request, response) => {
   const sectionsMatch = pathname.match(/^\/api\/departments\/([^/]+)\/sections$/);
 
   if (sectionsMatch) {
-    const department = getDepartment(sectionsMatch[1]);
+    const department = await getDepartment(sectionsMatch[1]);
 
     if (!department) {
       sendJson(response, 404, { error: 'Department not found' });
@@ -108,6 +143,8 @@ const server = createServer(async (request, response) => {
     const batchStart = searchParams.get('batchStart');
     const batchEnd = searchParams.get('batchEnd');
     const batchLabel = batchStart && batchEnd ? `${batchStart} - ${batchEnd}` : null;
+
+    const sections = await getSections();
 
     sendJson(response, 200, {
       department,
@@ -120,7 +157,7 @@ const server = createServer(async (request, response) => {
   const rollNumberMatch = pathname.match(/^\/api\/departments\/([^/]+)\/rollnumbers$/);
 
   if (rollNumberMatch) {
-    const department = getDepartment(rollNumberMatch[1]);
+    const department = await getDepartment(rollNumberMatch[1]);
 
     if (!department) {
       sendJson(response, 404, { error: 'Department not found' });
@@ -131,19 +168,58 @@ const server = createServer(async (request, response) => {
     const batchEnd = searchParams.get('batchEnd');
     const section = searchParams.get('section') ?? 'A';
 
+    const rollNumbers = await getRollNumbers(rollNumberMatch[1], batchStart, section);
+
     sendJson(response, 200, {
       department,
       batchLabel: batchStart && batchEnd ? `${batchStart} - ${batchEnd}` : null,
       section,
-      rollNumbers: getRollNumbers(batchStart, section),
+      rollNumbers,
     });
+    return;
+  }
+
+  if (pathname === '/api/profiles' && request.method === 'GET') {
+    const profiles = await listProfiles({
+      departmentId: searchParams.get('departmentId') ?? undefined,
+      batchStart: searchParams.get('batchStart') ?? undefined,
+      section: searchParams.get('section') ?? undefined,
+    });
+    sendJson(response, 200, profiles);
+    return;
+  }
+
+  if (pathname === '/api/profiles/seed' && request.method === 'POST') {
+    const result = await seedGeneratedProfiles({
+      departmentId: searchParams.get('departmentId') ?? 'cse',
+      batchStart: Number(searchParams.get('batchStart')) || 2022,
+      section: searchParams.get('section') ?? 'A',
+    });
+    sendJson(response, 201, result);
     return;
   }
 
   const profileMatch = pathname.match(/^\/api\/profiles\/([^/]+)$/);
 
-  if (profileMatch) {
-    sendJson(response, 200, getProfile(decodeURIComponent(profileMatch[1])));
+  if (profileMatch && request.method === 'GET') {
+    const rollNumber = decodeURIComponent(profileMatch[1]);
+    sendJson(response, 200, await getProfile(rollNumber, {
+      departmentId: searchParams.get('departmentId') ?? 'cse',
+      batchStart: Number(searchParams.get('batchStart')) || 2022,
+      section: searchParams.get('section') ?? 'A',
+    }));
+    return;
+  }
+
+  if (profileMatch && request.method === 'PUT') {
+    try {
+      const rollNumber = decodeURIComponent(profileMatch[1]);
+      const body = await readJsonBody(request);
+      const profile = await saveProfile(rollNumber, body);
+      sendJson(response, 200, profile);
+    } catch {
+      sendJson(response, 400, { error: 'Invalid JSON body' });
+    }
     return;
   }
 

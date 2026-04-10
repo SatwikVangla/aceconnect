@@ -85,6 +85,23 @@ body {
   padding: 7rem;
 }
 
+.profile-editor {
+  margin: 2rem auto 4rem;
+  max-width: 960px;
+}
+
+.profile-editor .card {
+  border-radius: 16px;
+}
+
+.profile-editor .form-label {
+  font-weight: 600;
+}
+
+.save-status {
+  min-height: 24px;
+}
+
 .footer-class {
   text-align: center;
   bottom: 0;
