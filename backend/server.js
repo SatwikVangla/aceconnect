@@ -20,6 +20,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || '127.0.0.1';
+const adminToken = process.env.ADMIN_TOKEN || '';
 
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -36,7 +37,7 @@ function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
   });
   response.end(JSON.stringify(payload));
@@ -45,7 +46,7 @@ function sendJson(response, statusCode, payload) {
 function sendNoContent(response) {
   response.writeHead(204, {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
   });
   response.end();
@@ -88,6 +89,24 @@ async function serveStatic(response, pathname) {
   }
 }
 
+function isAdminAuthorized(request) {
+  if (!adminToken) {
+    return true;
+  }
+
+  const headerToken = request.headers['x-admin-token'];
+  return typeof headerToken === 'string' && headerToken === adminToken;
+}
+
+function requireAdmin(request, response) {
+  if (isAdminAuthorized(request)) {
+    return true;
+  }
+
+  sendJson(response, 401, { error: 'Admin authorization required' });
+  return false;
+}
+
 const server = createServer(async (request, response) => {
   if (!request.url) {
     sendJson(response, 400, { error: 'Invalid request' });
@@ -104,6 +123,31 @@ const server = createServer(async (request, response) => {
 
   if (pathname === '/api/health') {
     sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (pathname === '/api/admin/config' && request.method === 'GET') {
+    sendJson(response, 200, {
+      authEnabled: Boolean(adminToken),
+    });
+    return;
+  }
+
+  if (pathname === '/api/admin/session' && request.method === 'POST') {
+    try {
+      const body = await readJsonBody(request);
+      const providedToken = typeof body.token === 'string' ? body.token : '';
+      const valid = !adminToken || providedToken === adminToken;
+
+      if (!valid) {
+        sendJson(response, 401, { error: 'Invalid admin token' });
+        return;
+      }
+
+      sendJson(response, 200, { ok: true });
+    } catch {
+      sendJson(response, 400, { error: 'Invalid JSON body' });
+    }
     return;
   }
 
@@ -190,6 +234,10 @@ const server = createServer(async (request, response) => {
   }
 
   if (pathname === '/api/profiles/seed' && request.method === 'POST') {
+    if (!requireAdmin(request, response)) {
+      return;
+    }
+
     const result = await seedGeneratedProfiles({
       departmentId: searchParams.get('departmentId') ?? 'cse',
       batchStart: Number(searchParams.get('batchStart')) || 2022,
@@ -212,6 +260,10 @@ const server = createServer(async (request, response) => {
   }
 
   if (profileMatch && request.method === 'PUT') {
+    if (!requireAdmin(request, response)) {
+      return;
+    }
+
     try {
       const rollNumber = decodeURIComponent(profileMatch[1]);
       const body = await readJsonBody(request);

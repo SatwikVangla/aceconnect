@@ -8,6 +8,44 @@ const rollNumber = params.get('rollNumber') ?? '22AG1A0501';
 const departmentId = params.get('departmentId') ?? 'cse';
 const batchStart = Number(params.get('batchStart')) || 2022;
 const section = params.get('section') ?? 'A';
+const adminStorageKey = 'aceconnect_admin_token';
+
+function getStoredAdminToken() {
+  return window.localStorage.getItem(adminStorageKey) ?? '';
+}
+
+function setStoredAdminToken(token) {
+  if (token) {
+    window.localStorage.setItem(adminStorageKey, token);
+    return;
+  }
+
+  window.localStorage.removeItem(adminStorageKey);
+}
+
+async function fetchAdminConfig() {
+  const response = await fetch('/api/admin/config');
+
+  if (!response.ok) {
+    throw new Error(`Failed to load admin config: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function validateAdminToken(token) {
+  const response = await fetch('/api/admin/session', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Invalid admin token: ${response.status}`);
+  }
+}
 
 function profileRender(profile) {
   profileContainerEl.innerHTML = `
@@ -99,12 +137,62 @@ function profileRender(profile) {
   `;
 }
 
-function renderEditor(profile) {
+function renderEditor(profile, adminConfig) {
+  if (adminConfig.authEnabled && !getStoredAdminToken()) {
+    profileEditorContainerEl.innerHTML = `
+      <section class="profile-editor">
+        <div class="card">
+          <div class="card-body">
+            <h2 class="h4 mb-3">Admin Login Required</h2>
+            <p class="text-muted">Enter the backend admin token to edit and save profiles.</p>
+            <form class="admin-token-form row g-3">
+              <div class="col-md-8">
+                <label class="form-label" for="adminToken">Admin Token</label>
+                <input class="form-control" id="adminToken" name="adminToken" type="password" autocomplete="off">
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Unlock Editor</button>
+              </div>
+              <div class="col-12">
+                <span class="save-status text-muted"></span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const tokenFormEl = profileEditorContainerEl.querySelector('.admin-token-form');
+    const statusEl = profileEditorContainerEl.querySelector('.save-status');
+
+    tokenFormEl.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      statusEl.textContent = 'Checking token...';
+
+      const formData = new FormData(tokenFormEl);
+      const token = String(formData.get('adminToken') ?? '').trim();
+
+      try {
+        await validateAdminToken(token);
+        setStoredAdminToken(token);
+        renderEditor(profile, adminConfig);
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = 'Invalid admin token.';
+      }
+    });
+
+    return;
+  }
+
   profileEditorContainerEl.innerHTML = `
     <section class="profile-editor">
       <div class="card">
         <div class="card-body">
-          <h2 class="h4 mb-4">Edit Profile</h2>
+          <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <h2 class="h4 mb-0">Edit Profile</h2>
+            ${adminConfig.authEnabled ? '<button type="button" class="btn btn-outline-secondary btn-sm logout-admin">Clear Admin Token</button>' : ''}
+          </div>
           <form class="profile-form row g-3">
             <div class="col-md-6">
               <label class="form-label" for="fullName">Full Name</label>
@@ -174,6 +262,14 @@ function renderEditor(profile) {
 
   const formEl = profileEditorContainerEl.querySelector('.profile-form');
   const statusEl = profileEditorContainerEl.querySelector('.save-status');
+  const logoutButtonEl = profileEditorContainerEl.querySelector('.logout-admin');
+
+  if (logoutButtonEl) {
+    logoutButtonEl.addEventListener('click', () => {
+      setStoredAdminToken('');
+      renderEditor(profile, adminConfig);
+    });
+  }
 
   formEl.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -186,25 +282,38 @@ function renderEditor(profile) {
     payload.section = section;
 
     try {
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      const token = getStoredAdminToken();
+
+      if (token) {
+        headers['X-Admin-Token'] = token;
+      }
+
       const response = await fetch(`/api/profiles/${encodeURIComponent(rollNumber)}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setStoredAdminToken('');
+          renderEditor(profile, adminConfig);
+          throw new Error('Unauthorized');
+        }
+
         throw new Error(`Save failed: ${response.status}`);
       }
 
       const updatedProfile = await response.json();
       profileRender(updatedProfile);
-      renderEditor(updatedProfile);
+      renderEditor(updatedProfile, adminConfig);
       statusEl.textContent = 'Saved to backend JSON store.';
     } catch (error) {
       console.error(error);
-      statusEl.textContent = 'Save failed.';
+      statusEl.textContent = error.message === 'Unauthorized' ? 'Admin token expired or invalid.' : 'Save failed.';
     }
   });
 }
@@ -214,13 +323,17 @@ async function init() {
   spinnerRender(profileEditorContainerEl);
 
   try {
-    const profile = await fetchProfile(rollNumber, {
-      departmentId,
-      batchStart,
-      section,
-    });
+    const [profile, adminConfig] = await Promise.all([
+      fetchProfile(rollNumber, {
+        departmentId,
+        batchStart,
+        section,
+      }),
+      fetchAdminConfig(),
+    ]);
+
     profileRender(profile);
-    renderEditor(profile);
+    renderEditor(profile, adminConfig);
   } catch (error) {
     console.error(error);
     profileContainerEl.innerHTML = '<p class="text-center">Unable to load the profile right now.</p>';
