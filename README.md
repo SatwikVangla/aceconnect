@@ -8,13 +8,6 @@ Detailed documentation:
 - [API Reference](./docs/API.md)
 - [Codebase Guide](./docs/CODEBASE.md)
 
-## Preview Images
-
-The repo now includes lightweight page previews for the main flows:
-
-![Home](docs/images/home.svg)
-![Profile](docs/images/profile.svg)
-![Admin Dashboard](docs/images/admin-dashboard.svg)
 
 ## Run
 
